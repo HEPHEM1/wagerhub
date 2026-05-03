@@ -9,9 +9,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const operatorId = process.env.HEDERA_OPERATOR_ID;
-    const operatorKey = process.env.HEDERA_OPERATOR_KEY;
-    const topicId = process.env.NEXT_PUBLIC_HCS_TOPIC_ID;
+    const operatorId = (process.env.HEDERA_OPERATOR_ID || "").trim();
+    const operatorKey = (process.env.HEDERA_OPERATOR_KEY || "").trim();
+    const topicId = (process.env.NEXT_PUBLIC_HCS_TOPIC_ID || "").trim();
 
     if (!operatorId || !operatorKey || !topicId) {
       console.error("[HCS] Missing server environment variables for HCS.");

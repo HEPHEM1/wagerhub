@@ -36,7 +36,7 @@ const SWAP_GAS = 100_000;
 
 /** Hedera Testnet Mirror Node base URL */
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
-const TREASURY_ID = process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484";
+const TREASURY_ID = (process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim();
 
 const TOKENS = [
   { id: "HBAR", symbol: "HBAR", type: "native", icon: "ℏ" },

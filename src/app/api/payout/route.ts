@@ -9,9 +9,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const operatorId = process.env.HEDERA_OPERATOR_ID;
-    const operatorKey = process.env.HEDERA_OPERATOR_KEY;
-    const treasuryId = process.env.NEXT_PUBLIC_TREASURY_ID || operatorId;
+    const operatorId = (process.env.HEDERA_OPERATOR_ID || "").trim();
+    const operatorKey = (process.env.HEDERA_OPERATOR_KEY || "").trim();
+    const treasuryId = (process.env.NEXT_PUBLIC_TREASURY_ID || operatorId).trim();
     
     const WAGER_TOKEN_ID = "0.0.8818191";
 

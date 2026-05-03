@@ -6,27 +6,19 @@ import { LedgerId, Transaction, TransactionId, AccountId } from "@hashgraph/sdk"
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "37016fd71f4d35906f67ec93aa5225ec";
+const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "37016fd71f4d35906f67ec93aa5225ec").trim();
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
 const appMetadata = {
   name: "WagerHub",
-  description: "Universal Web3 Arcade and DeFi Terminal on Hedera. Swap tokens and play games with instant settlements.",
-  icons: ["https://wagerhub.vercel.app/logo.png"],
+  description: "Universal Web3 Arcade and DeFi Terminal on Hedera.",
+  icons: ["https://wagerhub.vercel.app/logo.png"], // Updated to live URL
   url: typeof window !== "undefined" ? window.location.origin : "https://wagerhub.vercel.app",
 };
 
-// We'll initialize this lazily on the client to avoid SSR crashes
-let hashconnectInstance: HashConnect | null = null;
-
-export const getHashConnect = () => {
-  if (typeof window === "undefined") return null;
-  if (!hashconnectInstance) {
-    hashconnectInstance = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
-  }
-  return hashconnectInstance;
-};
+// Create a singleton instance of HashConnect
+export const hashconnect = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface WalletBalances {
@@ -113,15 +105,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Initialize HashConnect
   useEffect(() => {
     let isMounted = true;
-    const hc = getHashConnect();
-    if (!hc) return;
 
     const setupHashConnect = async () => {
       try {
-        await hc.init();
+        await hashconnect.init();
 
         // Check if there is an existing pairing
-        const savedData = hc.connectedAccountIds;
+        const savedData = hashconnect.connectedAccountIds;
         if (savedData && savedData.length > 0) {
           if (isMounted) {
             setAccountId(savedData[0].toString());
@@ -139,7 +129,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setupHashConnect();
 
     // Listeners
-    const pairingSub = hc.pairingEvent.on((pairingData) => {
+    hashconnect.pairingEvent.on((pairingData) => {
       if (isMounted && pairingData.accountIds.length > 0) {
         setAccountId(pairingData.accountIds[0].toString());
         setIsConnected(true);
@@ -147,7 +137,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const disconnectSub = hc.disconnectionEvent.on(() => {
+    hashconnect.disconnectionEvent.on(() => {
       if (isMounted) {
         setAccountId(null);
         setIsConnected(false);
@@ -156,7 +146,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const statusSub = hc.connectionStatusChangeEvent.on((state) => {
+    hashconnect.connectionStatusChangeEvent.on((state) => {
       if (isMounted) {
         if (state === HashConnectConnectionState.Connecting) {
           setIsConnecting(true);
@@ -168,8 +158,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
-      // Note: hashconnect events don't strictly require unsubscription in this version
-      // but we keep the mounted check for safety.
     };
   }, []);
 
@@ -228,21 +216,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Connect & Disconnect
   const connect = async () => {
-    const hc = getHashConnect();
-    if (!hc) return;
     try {
       setError(null);
-      await hc.openPairingModal();
+      await hashconnect.openPairingModal();
     } catch (err: any) {
       setError(err.message || "Failed to connect wallet.");
     }
   };
 
   const disconnect = async () => {
-    const hc = getHashConnect();
-    if (!hc) return;
     try {
-      await hc.disconnect();
+      await hashconnect.disconnect();
       setAccountId(null);
       setIsConnected(false);
     } catch (err: any) {
@@ -285,11 +269,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // We call the signer's underlying WalletConnect request directly with the
       // pre-encoded bytes. This is what sendTransaction does internally, but we
       // skip the re-parsing step that causes the protobuf crash.
-      const hc = getHashConnect();
-      if (!hc) throw new Error("Wallet instance not available");
-
       // @ts-ignore - version mismatch between SDK 2.81 and 2.41
-      const signer = hc.getSigner(accountIdObj as any);
+      const signer = hashconnect.getSigner(accountIdObj as any);
       // @ts-ignore - access internal request method
       const response = await (signer as any).request({
         method: "hedera_signAndExecuteTransaction",
