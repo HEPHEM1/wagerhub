@@ -36,6 +36,7 @@ const SWAP_GAS = 100_000;
 
 /** Hedera Testnet Mirror Node base URL */
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
+const TREASURY_ID = process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484";
 
 const TOKENS = [
   { id: "HBAR", symbol: "HBAR", type: "native", icon: "ℏ" },
@@ -188,7 +189,7 @@ export default function Wagerswap() {
       
       const swapTx = new TransferTransaction()
         .addHbarTransfer(accountId, amountInHbar.negated())
-        .addHbarTransfer("0.0.8800842", amountInHbar)
+        .addHbarTransfer(TREASURY_ID, amountInHbar)
         .setTransactionMemo("WagerHub Swap");
 
       const res = await executeTransaction(swapTx);

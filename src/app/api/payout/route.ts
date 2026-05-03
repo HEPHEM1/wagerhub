@@ -11,22 +11,17 @@ export async function POST(req: Request) {
 
     const operatorId = process.env.HEDERA_OPERATOR_ID;
     const operatorKey = process.env.HEDERA_OPERATOR_KEY;
+    const treasuryId = process.env.NEXT_PUBLIC_TREASURY_ID || operatorId;
     
-    // Hardcoded Testnet Treasury Info (must match the .env Operator)
-    const TREASURY_ACCOUNT_ID = "0.0.8800842";
     const WAGER_TOKEN_ID = "0.0.8818191";
 
-    if (!operatorId || !operatorKey) {
-      console.error("[Payout API] Server missing operator credentials.");
+    if (!operatorId || !operatorKey || !treasuryId) {
+      console.error("[Payout API] Server missing operator or treasury credentials.");
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
 
-    if (operatorId !== TREASURY_ACCOUNT_ID) {
-      console.warn("[Payout API] Warning: Operator ID does not match Treasury Account ID.");
-    }
-
     // Parse the private key properly based on its format (ECDSA vs ED25519)
-    const key = operatorKey.length === 64 || operatorKey.startsWith('0x') 
+    const key = operatorKey.startsWith('0x') 
       ? PrivateKey.fromStringECDSA(operatorKey) 
       : PrivateKey.fromString(operatorKey);
 
@@ -40,7 +35,7 @@ export async function POST(req: Request) {
 
     // Create the payout transfer transaction
     const tx = new TransferTransaction()
-      .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(TREASURY_ACCOUNT_ID), -amountInTokens)
+      .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(treasuryId), -amountInTokens)
       .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(accountId), amountInTokens)
       .setTransactionMemo("WagerHub Blind Loot Payout");
 

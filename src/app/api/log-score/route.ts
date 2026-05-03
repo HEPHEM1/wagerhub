@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     }
 
     // Parse the private key properly based on its format (ECDSA vs ED25519)
-    const key = operatorKey.length === 64 || operatorKey.startsWith('0x') 
+    const key = operatorKey.startsWith('0x') 
       ? PrivateKey.fromStringECDSA(operatorKey) 
       : PrivateKey.fromString(operatorKey);
 

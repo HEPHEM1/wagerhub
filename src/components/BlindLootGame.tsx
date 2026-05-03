@@ -6,7 +6,7 @@ import { Bomb, Gem, Coins, Target, Loader2 } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 
-const TREASURY_ACCOUNT_ID = AccountId.fromString("0.0.8800842");
+const TREASURY_ACCOUNT_ID = AccountId.fromString(process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484");
 const WAGER_TOKEN_ID = TokenId.fromString("0.0.8818191");
 
 type GameState = "setup" | "playing" | "cashout" | "bust";
