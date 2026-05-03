@@ -12,16 +12,13 @@ const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
 const appMetadata = {
   name: "WagerHub",
-  description: "Universal Web3 Arcade and DeFi Terminal on Hedera.",
-  icons: ["https://wagerhub.vercel.app/logo.png"], // Updated to live URL
+  description: "Universal Web3 Arcade and DeFi Terminal on Hedera. Swap tokens and play games with instant settlements.",
+  icons: ["https://wagerhub.vercel.app/logo.png"],
   url: typeof window !== "undefined" ? window.location.origin : "https://wagerhub.vercel.app",
 };
 
 // Create a singleton instance of HashConnect
-// Guarded with typeof window check to prevent SSR crashes on Vercel/Next.js
-export const hashconnect = typeof window !== "undefined"
-  ? new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true)
-  : null as unknown as HashConnect;
+export const hashconnect = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface WalletBalances {
