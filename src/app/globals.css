@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --color-wager-black: #000000;
+  --color-wager-charcoal: #121212;
+  --color-wager-lime: #ccff00;
+  --color-wager-cyan: #00ffff;
+  --color-wager-red: #ff0000;
+
+  --color-background: var(--color-wager-black);
+  --color-foreground: #ffffff;
+
+  --font-sans: var(--font-inter), sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-wager-black text-white font-sans antialiased selection:bg-wager-lime selection:text-black;
+  }
+}
