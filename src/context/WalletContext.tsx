@@ -269,9 +269,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // We call the signer's underlying WalletConnect request directly with the
       // pre-encoded bytes. This is what sendTransaction does internally, but we
       // skip the re-parsing step that causes the protobuf crash.
-      const signer = hashconnect.getSigner(accountIdObj);
+      // @ts-ignore - version mismatch between SDK 2.81 and 2.41
+      const signer = hashconnect.getSigner(accountIdObj as any);
       // @ts-ignore - access internal request method
-      const response = await signer.request({
+      const response = await (signer as any).request({
         method: "hedera_signAndExecuteTransaction",
         params: {
           signerAccountId: `hedera:testnet:${accountIdObj.toString()}`,
