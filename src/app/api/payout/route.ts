@@ -3,9 +3,9 @@ import { Client, PrivateKey, TransferTransaction, TokenId, AccountId } from "@ha
 
 export async function POST(req: Request) {
   try {
-    const { accountId, winAmount } = await req.json();
+    const { accountId, hbarAmount, winAmount } = await req.json();
 
-    if (!accountId || !winAmount) {
+    if (!accountId || (!hbarAmount && !winAmount)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -28,10 +28,16 @@ export async function POST(req: Request) {
     // Initialize the Hedera client with the Treasury credentials
     const client = Client.forTestnet().setOperator(operatorId, key);
 
-    // WAGER token has 8 decimals
-    const amountInTokens = Math.floor(parseFloat(winAmount) * 1e8);
+    // Enforce 1 HBAR = 100 $WAGER exchange rate (Secure Backend Logic)
+    // If hbarAmount is provided (from swap), use it. If not (from game), use winAmount.
+    const calculatedWagerAmount = hbarAmount 
+      ? parseFloat(hbarAmount) * 100 
+      : parseFloat(winAmount);
 
-    console.log(`[Payout API] Sending ${winAmount} WAGER from Treasury to ${accountId}...`);
+    // WAGER token has 8 decimals
+    const amountInTokens = Math.floor(calculatedWagerAmount * 1e8);
+
+    console.log(`[Payout API] Verified Payout: ${calculatedWagerAmount} $WAGER for ${hbarAmount || winAmount} input...`);
 
     // Create the payout transfer transaction
     const tx = new TransferTransaction()

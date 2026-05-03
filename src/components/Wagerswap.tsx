@@ -74,17 +74,16 @@ export default function Wagerswap() {
     setSwapStatus("idle");
   }, [payToken]);
 
-  // ── Conversion rates (mock — replace with on-chain quote) ─────────────────────
+  // ── Conversion rates (Season 1: 1 HBAR = 100 $WAGER) ─────────────────────
   const getReceiveAmount = () => {
-    if (!payAmount) return "";
-    const amount = parseFloat(payAmount);
-    let hbarEquivalent = amount;
-    if (payToken.symbol === "USDC" || payToken.symbol === "USDT") hbarEquivalent = amount * 10;
-    if (payToken.symbol === "$WAGER") hbarEquivalent = amount / 100;
-    let finalAmount = hbarEquivalent;
-    if (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT") finalAmount = hbarEquivalent / 10;
-    if (receiveToken.symbol === "$WAGER") finalAmount = hbarEquivalent * 100;
-    return finalAmount.toFixed(2);
+    if (!payAmount || isNaN(parseFloat(payAmount))) return "";
+    
+    // Season 1 only supports HBAR -> $WAGER
+    if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
+      return (parseFloat(payAmount) * 100).toFixed(2);
+    }
+    
+    return "0.00";
   };
 
   const receiveAmount = getReceiveAmount();
@@ -207,7 +206,7 @@ export default function Wagerswap() {
       const payoutRes = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId, winAmount: receiveAmount })
+        body: JSON.stringify({ accountId, hbarAmount: payAmount })
       });
 
       if (!payoutRes.ok) {
@@ -351,9 +350,16 @@ export default function Wagerswap() {
                 type="number"
                 placeholder="0.00"
                 value={payAmount}
+                disabled={payToken.symbol !== "HBAR"}
                 onChange={(e) => setPayAmount(e.target.value)}
-                className="bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full"
+                className={`bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full ${payToken.symbol !== "HBAR" ? 'opacity-20 cursor-not-allowed' : ''}`}
               />
+              
+              {payToken.symbol !== "HBAR" && (
+                <div className="absolute left-8 bottom-2 bg-wager-lime text-black text-[10px] font-black uppercase px-2 py-0.5 rounded-md animate-bounce">
+                  Coming Soon (Season 2)
+                </div>
+              )}
               
               {/* Pay Token Selector */}
               <div className="relative flex-shrink-0">
