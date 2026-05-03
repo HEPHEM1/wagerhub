@@ -6,11 +6,9 @@ import { LedgerId, Transaction, TransactionId, AccountId } from "@hashgraph/sdk"
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "37016fd71f4d35906f67ec93aa5225ec").trim();
+const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() || "37016fd71f4d35906f67ec93aa5225ec";
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
-
-console.log("[WalletContext] Initializing HashConnect with Project ID:", WC_PROJECT_ID.substring(0, 4) + "..." + WC_PROJECT_ID.substring(WC_PROJECT_ID.length - 4));
 
 const appMetadata = {
   name: "WagerHub",
