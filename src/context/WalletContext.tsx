@@ -10,10 +10,12 @@ const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "3701
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
+console.log("[WalletContext] Initializing HashConnect with Project ID:", WC_PROJECT_ID.substring(0, 4) + "..." + WC_PROJECT_ID.substring(WC_PROJECT_ID.length - 4));
+
 const appMetadata = {
   name: "WagerHub",
   description: "Universal Web3 Arcade and DeFi Terminal on Hedera.",
-  icons: ["https://wagerhub.vercel.app/logo.png"], // Updated to live URL
+  icons: ["https://wagerhub.vercel.app/logo.png"],
   url: typeof window !== "undefined" ? window.location.origin : "https://wagerhub.vercel.app",
 };
 
