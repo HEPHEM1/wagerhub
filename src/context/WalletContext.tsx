@@ -18,7 +18,10 @@ const appMetadata = {
 };
 
 // Create a singleton instance of HashConnect
-export const hashconnect = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
+// Guarded with typeof window check to prevent SSR crashes on Vercel/Next.js
+export const hashconnect = typeof window !== "undefined"
+  ? new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true)
+  : null as unknown as HashConnect;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface WalletBalances {
