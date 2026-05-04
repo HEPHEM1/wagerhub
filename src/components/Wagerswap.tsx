@@ -61,6 +61,7 @@ export default function Wagerswap() {
   const { isConnected, accountId, balances, network, wagerCredits, addWagerCredits, executeTransaction, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
+  const [isHbarToWager, setIsHbarToWager] = useState(true);
 
   // ── Swap state ────────────────────────────────────────────────────────────────
   const [isApproved, setIsApproved] = useState(false);
@@ -81,12 +82,14 @@ export default function Wagerswap() {
   const getReceiveAmount = () => {
     if (!payAmount || isNaN(parseFloat(payAmount))) return "";
     
-    // Season 1 only supports HBAR -> $WAGER
-    if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
+    // HBAR -> $WAGER (1:100)
+    if (isHbarToWager) {
       return (parseFloat(payAmount) * 100).toFixed(2);
+    } 
+    // $WAGER -> HBAR (100:1)
+    else {
+      return (parseFloat(payAmount) / 100).toFixed(2);
     }
-    
-    return "0.00";
   };
 
   const receiveAmount = getReceiveAmount();
@@ -197,16 +200,28 @@ export default function Wagerswap() {
       // ── Step 3: Build the swap transaction ──────────────────────────────────
       setSwapStatus("swapping");
 
-      const amountInHbar = Hbar.fromString(payAmount);
-      
-      console.log(
-        `[Wagerswap] Executing Swap: Transferring ${payAmount} HBAR to Treasury.`
-      );
-      
-      const swapTx = new TransferTransaction()
-        .addHbarTransfer(accountId, amountInHbar.negated())
-        .addHbarTransfer(TREASURY_ID, amountInHbar)
-        .setTransactionMemo("WagerHub Swap");
+      const direction = isHbarToWager ? 'HBAR_TO_WAGER' : 'WAGER_TO_HBAR';
+      let swapTx;
+
+      if (isHbarToWager) {
+        const amountInHbar = Hbar.fromString(payAmount);
+        console.log(`[Wagerswap] Executing HBAR -> $WAGER Swap: ${payAmount} HBAR to Treasury.`);
+        
+        swapTx = new TransferTransaction()
+          .addHbarTransfer(accountId, amountInHbar.negated())
+          .addHbarTransfer(TREASURY_ID, amountInHbar)
+          .setTransactionMemo("WagerHub Swap: HBAR -> $WAGER");
+      } else {
+        // $WAGER -> HBAR
+        // $WAGER has 8 decimals
+        const amountInTokens = Math.floor(parseFloat(payAmount) * 1e8);
+        console.log(`[Wagerswap] Executing $WAGER -> HBAR Swap: ${payAmount} $WAGER to Treasury.`);
+
+        swapTx = new TransferTransaction()
+          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
+          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ID, amountInTokens)
+          .setTransactionMemo("WagerHub Swap: $WAGER -> HBAR");
+      }
 
       let res;
       try {
@@ -229,7 +244,12 @@ export default function Wagerswap() {
       const payoutRes = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId, hbarAmount: payAmount })
+        body: JSON.stringify({ 
+          accountId, 
+          hbarAmount: isHbarToWager ? payAmount : null,
+          wagerAmount: !isHbarToWager ? payAmount : null,
+          direction 
+        })
       });
 
       if (!payoutRes.ok) {
@@ -301,6 +321,7 @@ export default function Wagerswap() {
   };
 
   const flipTokens = () => {
+    setIsHbarToWager(!isHbarToWager);
     setPayToken(receiveToken);
     setReceiveToken(payToken);
     setPayAmount("");
