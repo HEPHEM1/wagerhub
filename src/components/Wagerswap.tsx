@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
+import { HCSLiveFeed } from "./HCSLiveFeed";
 import {
   TokenAssociateTransaction,
   ContractExecuteTransaction,
@@ -57,7 +58,9 @@ export default function Wagerswap() {
   const [slippage, setSlippage] = useState("0.5");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, network, wagerCredits, addWagerCredits, executeTransaction, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, balances, network, wagerCredits, addWagerCredits, executeTransaction, refreshBalances } = useWagerWallet();
+
+  const [isClaimed, setIsClaimed] = useState(false);
 
   // ── Swap state ────────────────────────────────────────────────────────────────
   const [isApproved, setIsApproved] = useState(false);
@@ -89,6 +92,20 @@ export default function Wagerswap() {
   const receiveAmount = getReceiveAmount();
   const requiresApproval = payToken.type === "erc20";
   const isHopRequired = payToken.type === "erc20" && receiveToken.type === "erc20";
+
+  const handleQuickSelect = (percent: string) => {
+    const hbarBalance = parseFloat(balances.hbar);
+    if (isNaN(hbarBalance) || hbarBalance <= 0) return;
+
+    let amount = 0;
+    if (percent === 'MAX') {
+      amount = Math.max(0, hbarBalance - 1); // Gas buffer
+    } else {
+      const factor = parseInt(percent.replace('%', '')) / 100;
+      amount = hbarBalance * factor;
+    }
+    setPayAmount(amount.toFixed(2));
+  };
 
   // ── Association check ─────────────────────────────────────────────────────────
   /**
@@ -293,12 +310,41 @@ export default function Wagerswap() {
   };
 
   return (
-    <div className="w-full relative">
-      {/* Glow effect behind the terminal */}
-      <div className="absolute inset-0 bg-wager-cyan/5 blur-3xl rounded-[3rem] pointer-events-none"></div>
-      
+    <div className="w-full max-w-2xl mx-auto px-4 py-8">
+      {/* Early Adopter Bonus Banner */}
+      <AnimatePresence>
+        {!isClaimed && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+            animate={{ height: "auto", opacity: 1, marginBottom: 24 }}
+            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+            className="bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20 p-[1px] rounded-2xl overflow-hidden shadow-lg shadow-cyan-500/5"
+          >
+            <div className="bg-[#121214] px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="bg-cyan-500/20 p-2 rounded-lg">
+                  <CheckCircle2 size={20} className="text-cyan-400" />
+                </div>
+                <div>
+                  <h4 className="text-white text-sm font-black tracking-tight uppercase">Early Adopter Bonus</h4>
+                  <p className="text-cyan-400/80 text-[11px] uppercase font-black tracking-tighter">Claim 500 $WAGER Tokens</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsClaimed(true)}
+                className="bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/20"
+              >
+                CLAIM
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* The massive DeFi Terminal card */}
-      <div className="relative bg-wager-charcoal/80 backdrop-blur-2xl border border-wager-cyan/20 rounded-[3rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+      <div className="relative bg-wager-charcoal/80 backdrop-blur-2xl border border-wager-cyan/20 rounded-[3rem] p-8 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden">
+        {/* Glow effect behind the terminal */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
         
         <div className="flex justify-between items-center mb-10">
           <h2 className="text-2xl font-black text-white uppercase tracking-wider flex items-center gap-3">
@@ -361,12 +407,6 @@ export default function Wagerswap() {
                 className={`bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full ${payToken.symbol !== "HBAR" ? 'opacity-20 cursor-not-allowed' : ''}`}
               />
               
-              {payToken.symbol !== "HBAR" && (
-                <div className="absolute left-8 bottom-2 bg-wager-lime text-black text-[10px] font-black uppercase px-2 py-0.5 rounded-md animate-bounce">
-                  Coming Soon (Season 2)
-                </div>
-              )}
-              
               {/* Pay Token Selector */}
               <div className="relative flex-shrink-0">
                 <button 
@@ -411,6 +451,24 @@ export default function Wagerswap() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </div>
+            </div>
+            
+            {/* HBAR Balance and Quick Selectors */}
+            <div className="flex justify-between items-center mt-6 px-1 border-t border-white/5 pt-4">
+              <div className="flex items-center gap-1.5 text-white/30 text-[10px] font-bold uppercase tracking-tighter">
+                Balance: <span className="text-white/60 ml-1">{balances.hbar || "0.00"} HBAR</span>
+              </div>
+              <div className="flex gap-1.5">
+                {['25%', '50%', '75%', 'MAX'].map((label) => (
+                  <button
+                    key={label}
+                    onClick={() => handleQuickSelect(label)}
+                    className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-[9px] font-black text-white/30 hover:text-cyan-400 transition-all border border-white/5 hover:border-cyan-500/30"
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -499,6 +557,11 @@ export default function Wagerswap() {
                 </AnimatePresence>
               </div>
             </div>
+            
+            {/* $WAGER Balance */}
+            <div className="flex items-center mt-6 px-1 border-t border-white/5 pt-4 text-white/30 text-[10px] font-bold uppercase tracking-tighter">
+              Balance: <span className="text-wager-lime/60 ml-2">{balances.wager || "0.00"} $WAGER</span>
+            </div>
           </div>
         </div>
 
@@ -555,7 +618,7 @@ export default function Wagerswap() {
         </AnimatePresence>
 
         {/* Massive Dual-State Action Button */}
-        <div className="mt-6">
+        <div className="mt-8">
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
@@ -598,8 +661,10 @@ export default function Wagerswap() {
             </p>
           )}
         </div>
-
       </div>
+
+      <HCSLiveFeed />
     </div>
   );
 }
+
