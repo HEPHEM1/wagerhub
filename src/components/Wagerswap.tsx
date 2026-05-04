@@ -93,7 +93,7 @@ export default function Wagerswap() {
   };
 
   const receiveAmount = getReceiveAmount();
-  const requiresApproval = payToken.type === "erc20";
+  const requiresApproval = payToken.type === "erc20" && payToken.symbol !== "$WAGER";
   const isHopRequired = payToken.type === "erc20" && receiveToken.type === "erc20";
 
   const handleQuickSelect = (percent: string) => {
@@ -423,9 +423,9 @@ export default function Wagerswap() {
                 type="number"
                 placeholder="0.00"
                 value={payAmount}
-                disabled={payToken.symbol !== "HBAR"}
+                disabled={payToken.symbol !== "HBAR" && payToken.symbol !== "$WAGER"}
                 onChange={(e) => setPayAmount(e.target.value)}
-                className={`bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full ${payToken.symbol !== "HBAR" ? 'opacity-20 cursor-not-allowed' : ''}`}
+                className={`bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full ${(payToken.symbol !== "HBAR" && payToken.symbol !== "$WAGER") ? 'opacity-20 cursor-not-allowed' : ''}`}
               />
               
               {/* Pay Token Selector */}
@@ -669,6 +669,8 @@ export default function Wagerswap() {
               <><Loader2 size={24} className="animate-spin" /> Processing...</>
             ) : requiresApproval && !isApproved ? (
               <>Approve {payToken.symbol} Contract</>
+            ) : payToken.symbol === "$WAGER" ? (
+              <>Swap $WAGER for HBAR</>
             ) : (
               <>Execute Swap &amp; Load Wallet</>
             )}

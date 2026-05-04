@@ -15,11 +15,15 @@ export const HCSLiveFeed = () => {
 
   useEffect(() => {
     const fetchMessages = async () => {
+      if (!topicId || topicId === "undefined" || topicId.includes("NEXT_PUBLIC")) return;
+      
       try {
         const res = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/topics/${topicId}/messages?limit=5&order=desc`);
         if (!res.ok) return;
-        const data = await res.json();
         
+        const data = await res.json();
+        if (!data.messages) return;
+
         const decodedMessages = data.messages.map((m: any) => {
           try {
             // Hedera messages are base64 encoded
@@ -31,7 +35,7 @@ export const HCSLiveFeed = () => {
         
         setMessages(decodedMessages);
       } catch (err) {
-        console.error("HCS Fetch Error:", err);
+        // Silently fail to keep console clean
       }
     };
 
@@ -68,7 +72,7 @@ export const HCSLiveFeed = () => {
         )) : (
           <div className="text-white/20 italic flex items-center justify-center py-4 gap-3">
             <div className="w-4 h-4 border-2 border-white/10 border-t-cyan-500 rounded-full animate-spin" />
-            Synchronizing with Mirror Node...
+            Waiting for live swaps...
           </div>
         )}
       </div>
