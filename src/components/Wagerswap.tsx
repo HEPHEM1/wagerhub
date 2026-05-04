@@ -191,7 +191,13 @@ export default function Wagerswap() {
         .addHbarTransfer(TREASURY_ID, amountInHbar)
         .setTransactionMemo("WagerHub Swap");
 
-      const res = await executeTransaction(swapTx);
+      let res;
+      try {
+        res = await executeTransaction(swapTx);
+      } catch (error) {
+        console.error("TRANSACTION FAILURE (Frontend):", error);
+        throw error;
+      }
       
       if (!res) {
         throw new Error("Swap transaction was rejected by the wallet or cancelled.");

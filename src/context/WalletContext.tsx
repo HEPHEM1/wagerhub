@@ -247,47 +247,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const accountIdObj = AccountId.fromString(accountId);
 
-      // ─── Step 1: Populate & freeze using OUR SDK (2.81.0) ──────────────────
-      // We do this ourselves to avoid HashConnect's internal SDK 2.41.0 doing it.
-      if (!transaction.transactionId) {
-        transaction.setTransactionId(TransactionId.generate(accountIdObj));
+      // ─── Step 1: Ensure Transaction is properly frozen ──────────────────
+      // Standard Hedera practice: transaction must be frozen with a valid 
+      // TransactionId and NodeAccountIds before being signed.
+      if (!transaction.isFrozen()) {
+        if (!transaction.transactionId) {
+          transaction.setTransactionId(TransactionId.generate(accountIdObj));
+        }
+        if (!transaction.nodeAccountIds || transaction.nodeAccountIds.length === 0) {
+          // Use Testnet Node 0.0.3 by default
+          transaction.setNodeAccountIds([AccountId.fromString("0.0.3")]);
+        }
+        transaction.freeze();
       }
-      if (!transaction.nodeAccountIds || transaction.nodeAccountIds.length === 0) {
-        transaction.setNodeAccountIds([
-          AccountId.fromString("0.0.3"),
-          AccountId.fromString("0.0.4"),
-          AccountId.fromString("0.0.5"),
-        ]);
-      }
-      transaction.freeze();
 
-      // ─── Step 2: Serialize to base64 using the hedera-wallet-connect helper ─
-      // This is the EXACT same helper HashConnect uses internally in its signer.js.
-      // Using the shared helper ensures the encoding is 100% compatible with what
-      // HashPack expects, without triggering the SDK protobuf version mismatch.
-      const txBase64 = transactionToBase64String(transaction);
-      const txId = transaction.transactionId!.toString();
-
-      // ─── Step 3: Send via the HashConnect signer's request method ──────────
-      // We call the signer's underlying WalletConnect request directly with the
-      // pre-encoded bytes. This is what sendTransaction does internally, but we
-      // skip the re-parsing step that causes the protobuf crash.
+      // ─── Step 2: Use the V3 Signer Implementation ───────────────────────
+      // HashConnect V3 uses the standard Hedera Signer interface.
       // @ts-ignore - version mismatch between SDK 2.81 and 2.41
       const signer = hashconnect.getSigner(accountIdObj as any);
-      // @ts-ignore - access internal request method
-      const response = await (signer as any).request({
-        method: "hedera_signAndExecuteTransaction",
-        params: {
-          signerAccountId: `hedera:testnet:${accountIdObj.toString()}`,
-          transactionList: txBase64,
-        },
-      });
+
+      console.log("[WagerWallet] Executing transaction with Signer...");
+      
+      // Execute the transaction using the signer as requested
+      // @ts-ignore - version mismatch
+      const response = await transaction.executeWithSigner(signer);
 
       console.log("[WagerWallet] Transaction response:", response);
-      return { txId, status: "SUCCESS" };
-    } catch (err: any) {
-      console.error("[WagerWallet] executeTransaction error:", err);
-      setError(err.message || "Transaction failed.");
+      return { 
+        txId: response.transactionId ? response.transactionId.toString() : null, 
+        status: "SUCCESS" 
+      };
+    } catch (error: any) {
+      // Explicit strict logging as requested to debug silent hangs
+      console.error("TRANSACTION FAILURE:", error);
+      setError(error.message || "Transaction failed.");
       return null;
     }
   };
