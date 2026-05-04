@@ -6,7 +6,8 @@ import { LedgerId, Transaction, TransactionId, AccountId } from "@hashgraph/sdk"
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() || "37016fd71f4d35906f67ec93aa5225ec";
+// Hardcoded for stability until Vercel environment propagation is confirmed
+const WC_PROJECT_ID = "37016fd71f4d35906f67ec93aa5225ec";
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
@@ -14,7 +15,7 @@ const appMetadata = {
   name: "WagerHub",
   description: "Universal Web3 Arcade and DeFi Terminal on Hedera.",
   icons: ["https://wagerhub.vercel.app/logo.png"],
-  url: typeof window !== "undefined" ? window.location.origin : "https://wagerhub.vercel.app",
+  url: "https://wagerhub.vercel.app", // Matching Reown allowlist exactly
 };
 
 // Create a singleton instance of HashConnect
@@ -108,6 +109,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const setupHashConnect = async () => {
       try {
+        console.log("CRITICAL AUDIT - PROJECT ID:", process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "Hardcoded: " + WC_PROJECT_ID);
+        console.log("CRITICAL AUDIT - METADATA URL:", typeof window !== "undefined" ? window.location.origin : "SSR");
         await hashconnect.init();
 
         // Check if there is an existing pairing
