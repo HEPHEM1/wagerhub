@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { Client, PrivateKey, TransferTransaction, TokenId, AccountId, Hbar } from "@hashgraph/sdk";
+import { 
+  Client, 
+  PrivateKey, 
+  TransferTransaction, 
+  TokenId, 
+  AccountId, 
+  Hbar 
+} from "@hashgraph/sdk";
 
 export async function POST(req: Request) {
   try {
@@ -28,12 +35,14 @@ export async function POST(req: Request) {
     // Initialize the Hedera client with the Treasury credentials
     const client = Client.forTestnet().setOperator(operatorId, key);
 
-    let tx;
+    let tx: TransferTransaction;
     let memo = "WagerHub Payout";
 
     // ─── Case 1: Reverse Swap (WAGER -> HBAR) ──────────────────────────────
     if (direction === 'WAGER_TO_HBAR') {
       console.log(`[Payout API] Verifying WAGER -> HBAR Swap for ${accountId}...`);
+
+      if (!wagerAmount) throw new Error("Wager amount missing for reverse swap");
 
       // Verify the Treasury received the $WAGER from the user via Mirror Node
       const verifyUrl = `https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id=${accountId}&type=cryptotransfer&result=success&limit=1`;
@@ -44,7 +53,7 @@ export async function POST(req: Request) {
       if (!latestTx) throw new Error("No successful transaction found for verification.");
 
       // $WAGER has 8 decimals
-      const expectedTinyTokens = Math.floor(parseFloat(wagerAmount) * 1e8);
+      const expectedTinyTokens = Math.floor(parseFloat(wagerAmount.toString()) * 1e8);
       
       const confirmedTransfer = latestTx.token_transfers?.find((t: any) => 
         t.token_id === WAGER_TOKEN_ID && 
@@ -58,23 +67,25 @@ export async function POST(req: Request) {
       }
 
       // Calculate HBAR payout (100:1)
-      const hbarToPayout = parseFloat(wagerAmount) / 100;
+      const hbarToPayout = parseFloat(wagerAmount.toString()) / 100;
       memo = `WagerHub Reverse Swap: ${wagerAmount} $WAGER -> ${hbarToPayout} HBAR`;
 
       tx = new TransferTransaction()
-        .addHbarTransfer(AccountId.fromString(treasuryId), Hbar.from(hbarToPayout).negated())
-        .addHbarTransfer(AccountId.fromString(accountId), Hbar.from(hbarToPayout))
+        .addHbarTransfer(AccountId.fromString(treasuryId), new Hbar(hbarToPayout).negated())
+        .addHbarTransfer(AccountId.fromString(accountId), new Hbar(hbarToPayout))
         .setTransactionMemo(memo);
     } 
     // ─── Case 2: Standard Swap (HBAR -> WAGER) or Game Win ─────────────────
     else {
       // Enforce 1 HBAR = 100 $WAGER exchange rate (Secure Backend Logic)
       const calculatedWagerAmount = hbarAmount 
-        ? parseFloat(hbarAmount) * 100 
-        : parseFloat(winAmount);
+        ? parseFloat(hbarAmount.toString()) 
+        : parseFloat(winAmount.toString());
+
+      const finalWagerAmount = hbarAmount ? calculatedWagerAmount * 100 : calculatedWagerAmount;
 
       // WAGER token has 8 decimals
-      const amountInTokens = Math.floor(calculatedWagerAmount * 1e8);
+      const amountInTokens = Math.floor(finalWagerAmount * 1e8);
       memo = hbarAmount ? "WagerHub Swap Payout" : "WagerHub Game Payout";
 
       tx = new TransferTransaction()
