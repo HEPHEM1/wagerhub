@@ -114,7 +114,10 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("[Payout API] Error:", error);
     return NextResponse.json(
-      { error: "Failed to process payout." },
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error) 
+      },
       { status: 500 }
     );
   }

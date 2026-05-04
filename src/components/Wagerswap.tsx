@@ -253,7 +253,9 @@ export default function Wagerswap() {
       });
 
       if (!payoutRes.ok) {
-        throw new Error("Swap HBAR transferred successfully, but Backend Payout failed.");
+        const data = await payoutRes.json();
+        console.error("BACKEND CRASH REASON:", data.error);
+        throw new Error(`Swap successful, but Backend Payout failed: ${data.error || "Unknown server error"}`);
       }
 
       // ── Step 5: Success ────────────────────────────────────────────────────
