@@ -10,7 +10,7 @@ import {
 
 export async function POST(req: Request) {
   try {
-    const { accountId, hbarAmount, winAmount, wagerAmount, direction } = await req.json();
+    const { accountId, hbarAmount, winAmount, wagerAmount, direction, transactionId } = await req.json();
 
     if (!accountId || (!hbarAmount && !winAmount && !wagerAmount)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const operatorKey = (process.env.HEDERA_OPERATOR_KEY || "").trim();
     const treasuryId = (process.env.NEXT_PUBLIC_TREASURY_ID || operatorId).trim();
     
-    const WAGER_TOKEN_ID = "0.0.8818191";
+    const WAGER_TOKEN_ID = (process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim();
 
     if (!operatorId || !operatorKey || !treasuryId) {
       console.error("[Payout API] Server missing operator or treasury credentials.");
@@ -43,18 +43,30 @@ export async function POST(req: Request) {
       console.log(`[Payout API] Verifying WAGER -> HBAR Swap for ${accountId}...`);
 
       if (!wagerAmount) throw new Error("Wager amount missing for reverse swap");
+      if (!transactionId) throw new Error("Transaction ID missing for verification");
 
+      // Hedera Mirror Nodes require transaction IDs to be formatted with hyphens (e.g. 0.0.123-17123-456)
+      const formattedTxId = transactionId.replace('@', '-').replace(/\./g, '-');
+      
       // Verify the Treasury received the $WAGER from the user via Mirror Node
-      const verifyUrl = `https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id=${accountId}&type=cryptotransfer&result=success&limit=1`;
-      const verifyRes = await fetch(verifyUrl);
-      const verifyData = await verifyRes.json();
+      // We query the specific transaction ID to ensure we are verifying the correct swap
+      const verifyUrl = `https://testnet.mirrornode.hedera.com/api/v1/transactions/${formattedTxId}`;
+      console.log(`[Payout API] Querying Mirror Node: ${verifyUrl}`);
 
+      const verifyRes = await fetch(verifyUrl);
+      if (!verifyRes.ok) {
+        throw new Error(`Mirror Node query failed for Tx ${formattedTxId}. Transaction might still be indexing.`);
+      }
+
+      const verifyData = await verifyRes.json();
       const latestTx = verifyData.transactions?.[0];
-      if (!latestTx) throw new Error("No successful transaction found for verification.");
+      
+      if (!latestTx) throw new Error("No transaction details found on Mirror Node yet.");
 
       // $WAGER has 8 decimals
       const expectedTinyTokens = Math.floor(parseFloat(wagerAmount.toString()) * 1e8);
       
+      // Look for the specific token transfer to our Treasury
       const confirmedTransfer = latestTx.token_transfers?.find((t: any) => 
         t.token_id === WAGER_TOKEN_ID && 
         t.account === treasuryId && 
@@ -62,8 +74,12 @@ export async function POST(req: Request) {
       );
 
       if (!confirmedTransfer) {
-        console.error("[Payout API] Verification FAILED. Token transfer not found in latest tx.");
-        return NextResponse.json({ error: "Verification failed: $WAGER not received by Treasury." }, { status: 403 });
+        console.error("[Payout API] Verification FAILED. Token transfer not found in tx history.");
+        console.log("[Payout API] Found transfers:", JSON.stringify(latestTx.token_transfers));
+        return NextResponse.json({ 
+          error: "Verification failed: Treasury did not receive the expected $WAGER amount.",
+          foundTransfers: latestTx.token_transfers
+        }, { status: 403 });
       }
 
       // Calculate HBAR payout (100:1)

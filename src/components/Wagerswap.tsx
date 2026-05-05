@@ -239,7 +239,9 @@ export default function Wagerswap() {
 
       // ── Step 4: Backend Payout ─────────────────────────────────────────────
       setSwapStatus("payout");
-      console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} $WAGER to ${accountId}`);
+      const actualPayoutAmount = isHbarToWager ? receiveAmount : payAmount;
+      console.log(`[Wagerswap] Requesting backend payout of ${actualPayoutAmount} ${receiveToken.symbol} to ${accountId}`);
+      console.log(`[Wagerswap] Using Treasury ID: ${TREASURY_ID}`);
 
       const payoutRes = await fetch("/api/payout", {
         method: "POST",
@@ -248,7 +250,8 @@ export default function Wagerswap() {
           accountId, 
           hbarAmount: isHbarToWager ? payAmount : null,
           wagerAmount: !isHbarToWager ? payAmount : null,
-          direction 
+          direction,
+          transactionId: res.txId 
         })
       });
 
