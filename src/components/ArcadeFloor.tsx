@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Target, Swords, Dices } from "lucide-react";
-import BlindLootGame from "./BlindLootGame";
+import BlindLootMaster from "./BlindLootMaster";
 import PenaltyShootoutPro from "./PenaltyShootoutPro";
 
 export default function ArcadeFloor() {
@@ -81,7 +81,7 @@ export default function ArcadeFloor() {
             className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-black/90 backdrop-blur-md"
           >
             {activeGame === "blind-loot" && (
-              <BlindLootGame onClose={() => setActiveGame(null)} />
+              <BlindLootMaster onClose={() => setActiveGame(null)} />
             )}
             {activeGame === "penalty-shootout" && (
               <PenaltyShootoutPro onClose={() => setActiveGame(null)} />
