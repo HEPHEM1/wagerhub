@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+import ClientProviders from "@/components/ClientProviders";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
