@@ -16,6 +16,7 @@ export default function ArcadeFloor() {
       description: "Minesweeper but brutally unfair.",
       icon: <Target size={48} className="text-wager-lime" />,
       color: "bg-wager-lime/10 border-wager-lime/30",
+      backgroundImage: "bg-[url('/blind-loot-bg.jpg')]",
     },
     {
       id: "penalty-shootout",
@@ -52,17 +53,20 @@ export default function ArcadeFloor() {
               disabled={game.disabled}
               className={`w-full aspect-[4/3] text-left p-8 glass-card flex flex-col justify-end gap-6 relative overflow-hidden transition-all duration-300 ${
                 game.disabled ? "opacity-50 cursor-not-allowed grayscale" : `cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${game.color.replace('/10', '/5').replace('border-', 'hover:border-')}`
-              }`}
+              } ${game.backgroundImage ? `${game.backgroundImage} bg-cover bg-center border-none` : ""}`}
             >
+              {game.backgroundImage && (
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent z-0" />
+              )}
               {game.disabled && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
                   <span className="font-black tracking-widest uppercase text-xl text-white/80">Coming Soon</span>
                 </div>
               )}
-              <div className="p-6 bg-wager-black rounded-2xl border border-white/5 shadow-inner self-start">
+              <div className="p-6 bg-wager-black rounded-2xl border border-white/5 shadow-inner self-start relative z-10">
                 {game.icon}
               </div>
-              <div className="flex flex-col mt-auto">
+              <div className="flex flex-col mt-auto relative z-10">
                 <h3 className="text-3xl font-black text-white uppercase tracking-wider">{game.title}</h3>
                 <p className="text-lg font-mono text-zinc-400 mt-2">{game.description}</p>
               </div>
