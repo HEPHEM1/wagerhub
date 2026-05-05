@@ -27,7 +27,20 @@ export default function BlindLootGame({ onClose }: { onClose: () => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCashingOut, setIsCashingOut] = useState(false);
 
-  const { isConnected, accountId, executeTransaction, refreshBalances, connect } = useWagerWallet();
+  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
+
+  const handleQuickSelect = (percent: string) => {
+    if (!balances.wager || balances.wager === "0.00") return;
+    
+    const total = parseFloat(balances.wager);
+    if (percent === "MAX") {
+      // For $WAGER (HTS), gas is paid in HBAR, so no buffer needed
+      setWager(total.toString());
+    } else {
+      const p = parseInt(percent) / 100;
+      setWager((total * p).toFixed(2));
+    }
+  };
 
   const startGame = async () => {
     if (!wager || parseFloat(wager) <= 0) return;
@@ -239,10 +252,23 @@ export default function BlindLootGame({ onClose }: { onClose: () => void }) {
                     className="bg-transparent text-3xl font-mono text-white outline-none w-full placeholder:text-zinc-700 disabled:opacity-50"
                   />
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setWager("10")} disabled={gameState === "playing"} className="flex-1 bg-wager-black border border-wager-charcoal py-2 rounded-xl text-zinc-300 font-bold hover:text-wager-lime hover:border-wager-lime/50 disabled:opacity-50 transition-all">MIN</button>
-                  <button onClick={() => setWager("500")} disabled={gameState === "playing"} className="flex-1 bg-wager-black border border-wager-charcoal py-2 rounded-xl text-zinc-300 font-bold hover:text-wager-lime hover:border-wager-lime/50 disabled:opacity-50 transition-all">HALF</button>
-                  <button onClick={() => setWager("1000")} disabled={gameState === "playing"} className="flex-1 bg-wager-black border border-wager-charcoal py-2 rounded-xl text-zinc-300 font-bold hover:text-wager-lime hover:border-wager-lime/50 disabled:opacity-50 transition-all">MAX</button>
+                <div className="flex items-center justify-between mt-2 px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Balance:</span>
+                    <span className="text-[11px] font-mono text-wager-lime font-bold">{balances.wager} $WAGER</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {["25", "50", "75", "MAX"].map((percent) => (
+                      <button
+                        key={percent}
+                        onClick={() => handleQuickSelect(percent)}
+                        disabled={gameState === "playing" || !isConnected}
+                        className="px-2.5 py-1 bg-wager-black border border-white/5 rounded-md text-[10px] font-bold text-zinc-400 hover:text-wager-lime hover:border-wager-lime/30 transition-all disabled:opacity-50"
+                      >
+                        {percent === "MAX" ? "MAX" : `${percent}%`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
