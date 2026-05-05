@@ -51,11 +51,12 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full flex items-center justify-between px-8 py-4 border-b border-wager-charcoal bg-wager-black/80 backdrop-blur-md z-50 flex-shrink-0 relative">
+    <header className="w-full flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 relative">
+
 
       {/* Left: Logo */}
       <div className="flex flex-col w-1/3">
-        <h1 className="text-2xl font-black tracking-tighter text-white uppercase italic">
+        <h1 className="text-2xl font-black tracking-[0.2em] text-white uppercase italic">
           Wager<span className="text-wager-lime">Hub</span>
         </h1>
       </div>
@@ -76,7 +77,7 @@ export default function Header() {
             <span className="text-xs font-bold text-[#FFD700] uppercase tracking-widest drop-shadow-[0_0_8px_rgba(255,215,0,0.6)]">
               WagerCredits
             </span>
-            <span className="text-sm font-black font-mono text-[#FFD700] drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]">
+            <span className="text-sm font-black font-mono text-[#FFD700] drop-shadow-[0_0_12px_rgba(255,215,0,0.8)]">
               {wagerCredits.toLocaleString()}
             </span>
           </div>

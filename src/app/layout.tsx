@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Space_Mono } from "next/font/google";
-import "./globals.css";
-import ClientProviders from "@/components/ClientProviders";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 
-const inter = Inter({
-  variable: "--font-inter",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
-const spaceMono = Space_Mono({
-  weight: ["400", "700"],
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -28,9 +25,13 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning={true}
-      className={`${inter.variable} ${spaceMono.variable} h-full antialiased dark`}
+      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased dark`}
     >
-      <body suppressHydrationWarning={true} className="h-[100dvh] w-full bg-wager-black flex flex-col overflow-hidden">
+      <body suppressHydrationWarning={true} className="h-[100dvh] w-full bg-slate-950 flex flex-col overflow-hidden relative">
+        {/* Background Glowing Orbs */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-wager-cyan/20 blur-[120px] rounded-full animate-pulse pointer-events-none z-0" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-wager-lime/20 blur-[120px] rounded-full animate-pulse pointer-events-none z-0" />
+
         {/*
           ClientProviders is a "use client" component that internally uses
           dynamic(ssr:false) to load WalletProvider only in the browser,

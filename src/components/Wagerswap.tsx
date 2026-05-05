@@ -368,7 +368,7 @@ export default function Wagerswap() {
       </AnimatePresence>
 
       {/* The massive DeFi Terminal card */}
-      <div className="relative bg-wager-charcoal/80 backdrop-blur-2xl border border-wager-cyan/20 rounded-[3rem] p-8 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="relative glass-card p-8 md:p-10 overflow-hidden">
         {/* Glow effect behind the terminal */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
         

@@ -110,7 +110,7 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
           className="text-center max-w-5xl flex flex-col items-center w-full"
         >
           <div className="mb-6 inline-block">
-            <h1 className="text-7xl md:text-9xl font-black tracking-tighter text-white uppercase italic">
+            <h1 className="text-7xl md:text-9xl font-black tracking-[0.3em] text-white uppercase italic">
               Wager<span className="text-wager-lime">Hub</span>
             </h1>
           </div>
@@ -159,9 +159,9 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onEnter}
-              className="relative z-10 px-12 py-6 font-black uppercase tracking-widest text-black bg-wager-cyan rounded-full text-2xl transition-all shadow-[0_0_40px_rgba(0,255,255,0.4)] hover:shadow-[0_0_60px_rgba(0,255,255,0.6)]"
+              className="relative z-10 px-16 py-8 font-black uppercase tracking-[0.3em] text-black bg-wager-cyan rounded-full text-2xl transition-all shadow-[0_0_60px_rgba(0,255,255,0.4)] hover:shadow-[0_0_100px_rgba(0,255,255,0.7)]"
             >
-              Enter The Arcade
+              Enter Arcade
             </motion.button>
           </div>
 

@@ -7,9 +7,9 @@ import Leaderboard from "@/components/Leaderboard";
 import Wagerswap from "@/components/Wagerswap";
 import Header from "@/components/Header";
 import LandingPage from "@/components/LandingPage";
-import { Gamepad2, ArrowRightLeft } from "lucide-react";
+import { Gamepad2, ArrowRightLeft, TrendingUp } from "lucide-react";
 
-type ViewState = "arcade" | "swap";
+type ViewState = "arcade" | "swap" | "leaderboard";
 
 export default function Home() {
   const [hasEntered, setHasEntered] = useState(false);
@@ -22,35 +22,45 @@ export default function Home() {
   return (
     <>
       <Header />
-      <div className="flex flex-col flex-1 w-full h-full relative">
+      <div className="flex flex-col flex-1 w-full h-full relative overflow-hidden">
         
-        {/* Massive Tab Navigation */}
-        <div className="w-full bg-wager-black border-b border-wager-charcoal flex p-2 gap-2 flex-shrink-0 z-40 relative shadow-2xl">
-          <button
-            onClick={() => setActiveView("swap")}
-            className={`flex-1 py-4 flex justify-center items-center gap-3 rounded-xl transition-all relative overflow-hidden ${
-              activeView === "swap" ? "text-wager-cyan" : "text-zinc-500 hover:bg-wager-charcoal/30 hover:text-white"
-            }`}
-          >
-            {activeView === "swap" && (
-              <motion.div layoutId="activeTab" className="absolute inset-0 bg-wager-cyan/10 border border-wager-cyan/30 rounded-xl" />
-            )}
-            <ArrowRightLeft size={24} className="relative z-10" />
-            <span className="font-black tracking-widest text-lg relative z-10">WAGER SWAP</span>
-          </button>
+        {/* Arcade Mode Overlays */}
+        {activeView === "arcade" && (
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 neon-grid opacity-40 rotate-[15deg] scale-150" />
+            <div className="absolute top-0 left-0 w-64 h-64 bg-[radial-gradient(circle_at_top_left,_#ccff00_0%,_transparent_70%)] opacity-20 blur-3xl" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[radial-gradient(circle_at_top_right,_#00ffff_0%,_transparent_70%)] opacity-20 blur-3xl" />
+          </div>
+        )}
 
-          <button
-            onClick={() => setActiveView("arcade")}
-            className={`flex-1 py-4 flex justify-center items-center gap-3 rounded-xl transition-all relative overflow-hidden ${
-              activeView === "arcade" ? "text-wager-lime" : "text-zinc-500 hover:bg-wager-charcoal/30 hover:text-white"
-            }`}
-          >
-            {activeView === "arcade" && (
-              <motion.div layoutId="activeTab" className="absolute inset-0 bg-wager-lime/10 border border-wager-lime/30 rounded-xl" />
-            )}
-            <Gamepad2 size={24} className="relative z-10" />
-            <span className="font-black tracking-widest text-lg relative z-10">WAGER ARCADE</span>
-          </button>
+        {/* 3-Pillar Premium Navigation */}
+        <div className="w-full bg-slate-950/80 backdrop-blur-xl border-b border-white/5 flex px-4 pt-4 gap-8 flex-shrink-0 z-40 relative">
+          {[
+            { id: "swap", label: "WAGER SWAP", icon: <ArrowRightLeft size={18} />, color: "text-wager-cyan" },
+            { id: "arcade", label: "WAGER ARCADE", icon: <Gamepad2 size={18} />, color: "text-wager-lime" },
+            { id: "leaderboard", label: "LEADERBOARD", icon: <TrendingUp size={18} />, color: "text-amber-400" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveView(tab.id as ViewState)}
+              className={`pb-4 px-2 flex items-center gap-2.5 transition-all relative group ${
+                activeView === tab.id ? tab.color : "text-zinc-500 hover:text-white"
+              }`}
+            >
+              <div className="group-hover:scale-110 transition-transform">{tab.icon}</div>
+              <span className="font-black tracking-[0.15em] text-sm uppercase">{tab.label}</span>
+              
+              {/* Animated Underline */}
+              {activeView === tab.id ? (
+                <motion.div 
+                  layoutId="navUnderline" 
+                  className={`absolute bottom-0 left-0 right-0 h-1 rounded-t-full shadow-[0_-5px_15px_currentColor] ${tab.color.replace('text-', 'bg-')}`} 
+                />
+              ) : (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-1 bg-white/20 group-hover:w-full transition-all rounded-t-full" />
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Main Content Area */}
@@ -69,8 +79,18 @@ export default function Home() {
                 <main className="flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar">
                   <ArcadeFloor />
                 </main>
+              </motion.div>
+            )}
 
-                {/* Right Sidebar (Leaderboard) */}
+            {activeView === "leaderboard" && (
+              <motion.div
+                key="leaderboard"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-1 w-full h-full absolute inset-0 overflow-y-auto"
+              >
                 <Leaderboard />
               </motion.div>
             )}
@@ -82,7 +102,7 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="flex-1 w-full h-full flex items-center justify-center p-8 absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-wager-cyan/5 via-wager-black to-wager-black"
+                className="flex-1 w-full h-full flex items-center justify-center p-8 absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-wager-cyan/5 via-slate-950 to-slate-950"
               >
                 <div className="w-full max-w-4xl relative">
                   <Wagerswap />

@@ -50,8 +50,8 @@ export default function ArcadeFloor() {
               whileTap={!game.disabled ? { scale: 0.98 } : {}}
               onClick={() => !game.disabled && setActiveGame(game.id)}
               disabled={game.disabled}
-              className={`w-full aspect-[4/3] text-left p-8 rounded-3xl border bg-wager-charcoal/50 backdrop-blur-sm flex flex-col justify-end gap-6 relative overflow-hidden transition-colors shadow-xl ${
-                game.disabled ? "opacity-50 cursor-not-allowed grayscale" : `cursor-pointer hover:bg-wager-charcoal ${game.color}`
+              className={`w-full aspect-[4/3] text-left p-8 glass-card flex flex-col justify-end gap-6 relative overflow-hidden transition-all duration-300 ${
+                game.disabled ? "opacity-50 cursor-not-allowed grayscale" : `cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${game.color.replace('/10', '/5').replace('border-', 'hover:border-')}`
               }`}
             >
               {game.disabled && (
