@@ -55,17 +55,31 @@ export async function POST(req: Request) {
       // Verify the Treasury received the $WAGER from the user via Mirror Node
       // We query the specific transaction ID to ensure we are verifying the correct swap
       const verifyUrl = `https://testnet.mirrornode.hedera.com/api/v1/transactions/${formattedTxId}`;
-      console.log(`[Payout API] Querying Mirror Node: ${verifyUrl}`);
+      
+      let latestTx = null;
+      let attempts = 5;
+      
+      while (attempts > 0 && !latestTx) {
+        console.log(`[Payout API] Querying Mirror Node (Attempt ${6 - attempts}): ${verifyUrl}`);
+        const verifyRes = await fetch(verifyUrl);
+        
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          latestTx = verifyData.transactions?.[0];
+        }
 
-      const verifyRes = await fetch(verifyUrl);
-      if (!verifyRes.ok) {
-        throw new Error(`Mirror Node query failed for Tx ${formattedTxId}. Transaction might still be indexing.`);
+        if (!latestTx) {
+          attempts--;
+          if (attempts > 0) {
+            console.log(`[Payout API] Transaction not indexed yet. Retrying in 2.5s...`);
+            await new Promise(resolve => setTimeout(resolve, 2500));
+          }
+        }
       }
 
-      const verifyData = await verifyRes.json();
-      const latestTx = verifyData.transactions?.[0];
-      
-      if (!latestTx) throw new Error("No transaction details found on Mirror Node yet.");
+      if (!latestTx) {
+        throw new Error(`Mirror Node query failed for Tx ${formattedTxId} after multiple attempts. Transaction might still be indexing.`);
+      }
 
       // $WAGER has 8 decimals
       const expectedTinyTokens = Math.floor(parseFloat(wagerAmount.toString()) * 1e8);
