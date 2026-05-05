@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Target, Swords, Dices } from "lucide-react";
 import BlindLootGame from "./BlindLootGame";
-import PenaltyShootout from "./PenaltyShootout";
+import PenaltyShootoutPro from "./PenaltyShootoutPro";
 
 export default function ArcadeFloor() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export default function ArcadeFloor() {
               <BlindLootGame onClose={() => setActiveGame(null)} />
             )}
             {activeGame === "penalty-shootout" && (
-              <PenaltyShootout onClose={() => setActiveGame(null)} />
+              <PenaltyShootoutPro onClose={() => setActiveGame(null)} />
             )}
           </motion.div>
         )}
