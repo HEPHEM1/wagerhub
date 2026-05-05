@@ -45,8 +45,12 @@ export async function POST(req: Request) {
       if (!wagerAmount) throw new Error("Wager amount missing for reverse swap");
       if (!transactionId) throw new Error("Transaction ID missing for verification");
 
-      // Hedera Mirror Nodes require transaction IDs to be formatted with hyphens (e.g. 0.0.123-17123-456)
-      const formattedTxId = transactionId.replace('@', '-').replace(/\./g, '-');
+      // Hedera Mirror Nodes require transaction IDs to be formatted as account-timestamp (e.g. 0.0.123-17123-456)
+      // We must preserve the dots in the Account ID but replace the '@' and timestamp dot with hyphens
+      const parts = transactionId.split('@');
+      const accountIdPart = parts[0]; 
+      const timestampPart = parts[1].replace('.', '-'); 
+      const formattedTxId = `${accountIdPart}-${timestampPart}`;
       
       // Verify the Treasury received the $WAGER from the user via Mirror Node
       // We query the specific transaction ID to ensure we are verifying the correct swap
