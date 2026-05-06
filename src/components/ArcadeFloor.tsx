@@ -17,6 +17,7 @@ export default function ArcadeFloor() {
       icon: <Target size={48} className="text-wager-lime" />,
       color: "bg-wager-lime/10 border-wager-lime/30",
       backgroundImage: "bg-[url('/blind-loot-bg.jpg')]",
+      overlayClass: "from-black/95 via-black/40 to-transparent",
     },
     {
       id: "penalty-shootout",
@@ -24,6 +25,8 @@ export default function ArcadeFloor() {
       description: "Shoot for glory. Don't hit the keeper.",
       icon: <Swords size={48} className="text-wager-cyan" />,
       color: "bg-wager-cyan/10 border-wager-cyan/30",
+      backgroundImage: "bg-[url('/PENALTY.jpg')]",
+      overlayClass: "from-black/95 via-black/50 to-transparent",
     },
     {
       id: "degen-dice",
@@ -56,7 +59,7 @@ export default function ArcadeFloor() {
               } ${game.backgroundImage ? `${game.backgroundImage} bg-cover bg-center border-none` : ""}`}
             >
               {game.backgroundImage && (
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent z-0" />
+                <div className={`absolute inset-0 bg-gradient-to-t ${game.overlayClass || 'from-black/95 via-black/40 to-transparent'} z-0`} />
               )}
               {game.disabled && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
