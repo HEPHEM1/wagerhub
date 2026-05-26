@@ -124,7 +124,8 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         setSafeClicks(0);
         setGameState("playing");
         
-        setTimeout(() => refreshBalances(), 2000);
+        // Poll to catch Hedera Mirror Node indexing delays
+        [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
       } else {
         console.error("[MysteryField] Transaction failed with status:", status);
         alert("Transaction failed on the network. Please try again.");
@@ -198,7 +199,8 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         colors: ['#00ffff', '#ccff00', '#ffffff', '#ffd700']
       });
 
-      setTimeout(() => refreshBalances(), 2000);
+      // Poll to catch Hedera Mirror Node indexing delays
+      [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
     } catch (err) {
       console.error("[MysteryField] Cash out error:", err);
       alert("Failed to process payout. Please contact support.");
@@ -275,22 +277,24 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
                 Wager Amount ($WAGER)
               </label>
               <div className="flex flex-col gap-3">
-                <div className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 flex items-center focus-within:border-wager-cyan transition-colors">
-                  <Coins className="text-wager-cyan mr-3" size={24} />
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    value={wager}
-                    onChange={(e) => setWager(e.target.value)}
-                    disabled={gameState === "playing"}
-                    className="bg-transparent text-3xl font-mono text-white outline-none w-full placeholder:text-zinc-700 disabled:opacity-50"
-                  />
-                </div>
-                <div className="flex items-center justify-between mt-2 px-1">
-                  <div className="flex items-center gap-1.5">
+                <div className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 flex flex-col focus-within:border-wager-cyan transition-colors">
+                  <div className="flex items-center w-full">
+                    <Coins className="text-wager-cyan mr-3" size={24} />
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={wager}
+                      onChange={(e) => setWager(e.target.value)}
+                      disabled={gameState === "playing"}
+                      className="bg-transparent text-3xl font-mono text-white outline-none w-full placeholder:text-zinc-700 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2 ml-9">
                     <span className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Balance:</span>
                     <span className="text-[11px] font-mono text-wager-cyan font-bold">{balances.wager} $WAGER</span>
                   </div>
+                </div>
+                <div className="flex items-center justify-end mt-1 px-1">
                   <div className="flex gap-1.5">
                     {["25", "50", "75", "MAX"].map((percent) => (
                       <button
