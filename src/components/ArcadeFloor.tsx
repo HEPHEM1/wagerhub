@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Target, Swords, Dices } from "lucide-react";
 import BlindLootMaster from "./BlindLootMaster";
 import PenaltyShootoutPro from "./PenaltyShootoutPro";
+import MysteryField from "./MysteryField";
 
 export default function ArcadeFloor() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -35,6 +36,13 @@ export default function ArcadeFloor() {
       icon: <Dices size={48} className="text-wager-cyan" />,
       color: "bg-wager-cyan/10 border-wager-cyan/30",
       disabled: true,
+    },
+    {
+      id: "mystery-field",
+      title: "Mystery Field",
+      description: "Minesweeper, but brutally unfair.",
+      icon: <Target size={48} className="text-wager-cyan" />,
+      color: "bg-wager-cyan/10 border-wager-cyan/30",
     },
   ];
 
@@ -92,6 +100,9 @@ export default function ArcadeFloor() {
             )}
             {activeGame === "penalty-shootout" && (
               <PenaltyShootoutPro onClose={() => setActiveGame(null)} />
+            )}
+            {activeGame === "mystery-field" && (
+              <MysteryField onClose={() => setActiveGame(null)} />
             )}
           </motion.div>
         )}
