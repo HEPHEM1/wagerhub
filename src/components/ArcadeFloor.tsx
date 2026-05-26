@@ -30,19 +30,19 @@ export default function ArcadeFloor() {
       overlayClass: "from-black/95 via-black/50 to-transparent",
     },
     {
+      id: "mystery-field",
+      title: "Mystery Field",
+      description: "Hazard grid. Compound multipliers.",
+      icon: <Target size={48} className="text-wager-cyan" />,
+      color: "bg-wager-cyan/10 border-wager-cyan/30",
+    },
+    {
       id: "degen-dice",
       title: "Degen Dice",
       description: "Roll under, win big.",
       icon: <Dices size={48} className="text-wager-cyan" />,
       color: "bg-wager-cyan/10 border-wager-cyan/30",
       disabled: true,
-    },
-    {
-      id: "mystery-field",
-      title: "Mystery Field",
-      description: "Minesweeper, but brutally unfair.",
-      icon: <Target size={48} className="text-wager-cyan" />,
-      color: "bg-wager-cyan/10 border-wager-cyan/30",
     },
   ];
 

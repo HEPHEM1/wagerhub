@@ -2,28 +2,37 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Target, Coins, Loader2, Bomb, Shield, Info } from "lucide-react";
+import { Bomb, Gift, Coins, Grid3X3, Loader2 } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
-const WAGER_TOKEN_ID = TokenId.fromString((process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim());
+const WAGER_TOKEN_ID = TokenId.fromString("0.0.8818191");
 
-type GameState = "setup" | "sweeping" | "win" | "loss";
+type GameState = "setup" | "playing" | "cashout" | "bust";
+
+interface Box {
+  id: number;
+  isBomb: boolean;
+  isRevealed: boolean;
+}
 
 export default function MysteryField({ onClose }: { onClose: () => void }) {
   const [gameState, setGameState] = useState<GameState>("setup");
-  const [wager, setWager] = useState<string>("50");
+  const [bombs, setBombs] = useState(3);
+  const [wager, setWager] = useState<string>("10");
+  const [boxes, setBoxes] = useState<Box[]>(Array.from({ length: 30 }).map((_, i) => ({ id: i, isBomb: false, isRevealed: false })));
+  const [multiplier, setMultiplier] = useState(1.0);
+  const [safeClicks, setSafeClicks] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedBlocks, setSelectedBlocks] = useState<number[]>([]);
-  const [hazardBlocks, setHazardBlocks] = useState<number[]>([]);
-  const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
+  const [isCashingOut, setIsCashingOut] = useState(false);
 
   const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
+    
     const total = parseFloat(balances.wager);
     if (percent === "MAX") {
       setWager(total.toString());
@@ -33,118 +42,169 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const toggleBlock = (id: number) => {
-    if (gameState !== "setup") return;
-    if (selectedBlocks.includes(id)) {
-      setSelectedBlocks(selectedBlocks.filter(b => b !== id));
-    } else {
-      if (selectedBlocks.length >= 10) return; // Capped at 10 as requested
-      setSelectedBlocks([...selectedBlocks, id]);
-    }
-  };
-
-  const getMultiplier = (numPicks: number) => {
-    switch (numPicks) {
-      case 1: return 5.0;
-      case 2: return 35.0;
-      case 3: return 300.0;
-      case 4: return 4000.0;
-      case 5: return 100000.0;
-      default: return 0.0; // Impossible to win if > 5 picks, or 0 picks
-    }
-  };
-
-  const currentMultiplier = getMultiplier(selectedBlocks.length);
-  const potentialPayout = wager && parseFloat(wager) > 0 ? (parseFloat(wager) * currentMultiplier).toFixed(2) : "0.00";
-
-  const initiateSweep = async () => {
-    if (!wager || parseFloat(wager) <= 0 || selectedBlocks.length < 1) return;
+  const startGame = async () => {
+    if (!wager || parseFloat(wager) <= 0) return;
     if (!isConnected || !accountId) {
-      connect();
+      alert("Please connect your wallet to play!");
       return;
     }
 
     setIsProcessing(true);
-    setGameState("sweeping");
+    let hasResolved = false;
+
+    // ── 6-Second Safety Net ──
+    const fallbackTimeout = setTimeout(() => {
+      if (!hasResolved) {
+        console.warn("[MysteryField] 6-second timeout reached! Forcing UI transition.");
+        hasResolved = true;
+        setIsProcessing(false);
+        
+        const newBoxes = Array.from({ length: 30 }).map((_, i) => ({
+          id: i,
+          isBomb: false,
+          isRevealed: false,
+        }));
+        let bombsPlaced = 0;
+        while (bombsPlaced < bombs) {
+          const idx = Math.floor(Math.random() * 30);
+          if (!newBoxes[idx].isBomb) {
+            newBoxes[idx].isBomb = true;
+            bombsPlaced++;
+          }
+        }
+        setBoxes(newBoxes);
+        setMultiplier(1.0);
+        setSafeClicks(0);
+        setGameState("playing");
+      }
+    }, 6000);
 
     try {
-      // 1. Generate Hazards (25 hazards out of 30 blocks)
-      const allBlocks = Array.from({ length: 30 }, (_, i) => i);
-      const hazards: number[] = [];
-      while (hazards.length < 25) {
-        const rand = allBlocks[Math.floor(Math.random() * allBlocks.length)];
-        if (!hazards.includes(rand)) hazards.push(rand);
-      }
-      setHazardBlocks(hazards);
-
-      // Evaluate Win/Loss
-      const isLoss = selectedBlocks.some(b => hazards.includes(b));
       const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
-
-      if (isLoss) {
-        // Player Lost
-        const tx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Mystery Field Loss");
-
-        const res = await executeTransaction(tx);
-        if (!res) throw new Error("Transaction rejected");
-        
-        setGameState("loss");
-      } else {
-        // Player Won
-        setLastWinAmount(potentialPayout);
-
-        // Pre-game transfer
-        const tx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Mystery Field Win - Verifying...");
-
-        const res = await executeTransaction(tx);
-        if (!res) throw new Error("Transaction rejected");
-
-        // Payout
-        const payoutRes = await fetch("/api/payout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            accountId, 
-            winAmount: potentialPayout,
-            wagerAmount: wager,
-            direction: 'GAME_WIN'
-          })
-        });
-
-        if (!payoutRes.ok) throw new Error("Payout failed");
-        
-        setGameState("win");
-        confetti({
-          particleCount: 250,
-          spread: 100,
-          origin: { y: 0.6 },
-          colors: ['#00ffff', '#00ffcc', '#ffffff']
-        });
-      }
       
-      refreshBalances();
+      const tx = new TransferTransaction()
+        .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
+        .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
+        .setTransactionMemo("Mystery Field Wager");
+
+      const res = await executeTransaction(tx);
+
+      if (hasResolved) return;
+      hasResolved = true;
+      clearTimeout(fallbackTimeout);
+
+      if (!res) {
+        console.warn("[MysteryField] Transaction execution returned null.");
+        alert("Transaction was rejected or failed to parse. Please check your wallet.");
+        return;
+      }
+
+      const { txId, status } = res;
+
+      if (status === "SUCCESS" || txId) {
+        console.log("[MysteryField] ✅ Wager successful! Status:", status, "Tx ID:", txId);
+
+        const newBoxes = Array.from({ length: 30 }).map((_, i) => ({
+          id: i,
+          isBomb: false,
+          isRevealed: false,
+        }));
+
+        let bombsPlaced = 0;
+        while (bombsPlaced < bombs) {
+          const idx = Math.floor(Math.random() * 30);
+          if (!newBoxes[idx].isBomb) {
+            newBoxes[idx].isBomb = true;
+            bombsPlaced++;
+          }
+        }
+
+        setBoxes(newBoxes);
+        setMultiplier(1.0);
+        setSafeClicks(0);
+        setGameState("playing");
+        
+        setTimeout(() => refreshBalances(), 2000);
+      } else {
+        console.error("[MysteryField] Transaction failed with status:", status);
+        alert("Transaction failed on the network. Please try again.");
+      }
     } catch (err: any) {
-      console.error("[MysteryField] Error:", err);
-      setGameState("setup");
-      setSelectedBlocks([]);
-      setHazardBlocks([]);
-      alert(err.message || "Something went wrong.");
+      if (hasResolved) return;
+      hasResolved = true;
+      clearTimeout(fallbackTimeout);
+      console.error("[MysteryField] Start game error:", err);
+      alert(err.message || "Transaction failed. Check console for details.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const resetGame = () => {
-    setGameState("setup");
-    setSelectedBlocks([]);
-    setHazardBlocks([]);
-    setLastWinAmount(null);
+  const handleBoxClick = (idx: number) => {
+    if (gameState !== "playing" || boxes[idx].isRevealed) return;
+
+    const newBoxes = [...boxes];
+    newBoxes[idx].isRevealed = true;
+    setBoxes(newBoxes);
+
+    if (newBoxes[idx].isBomb) {
+      setGameState("bust");
+    } else {
+      const newSafeClicks = safeClicks + 1;
+      setSafeClicks(newSafeClicks);
+      
+      const baseIncrease = 1 + (bombs * 0.05);
+      const newMult = Math.pow(baseIncrease, newSafeClicks);
+      setMultiplier(newMult);
+      
+      // Auto cashout if all safe boxes are found
+      if (newSafeClicks === (30 - bombs)) {
+        cashOut(newMult);
+      }
+    }
+  };
+
+  const currentWin = wager ? (parseFloat(wager) * multiplier).toFixed(2) : "0.00";
+
+  const cashOut = async (finalMult?: number) => {
+    if (!accountId || !wager) return;
+
+    const winAmountToPayout = wager ? (parseFloat(wager) * (finalMult || multiplier)).toFixed(2) : "0.00";
+    setIsCashingOut(true);
+
+    try {
+      const res = await fetch("/api/payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          accountId, 
+          winAmount: winAmountToPayout,
+          wagerAmount: wager,
+          direction: 'GAME_WIN'
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error("Payout API failed");
+      }
+
+      setGameState("cashout");
+      
+      // Hurray Celebration!
+      confetti({
+        particleCount: 200,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors: ['#00ffff', '#ccff00', '#ffffff', '#ffd700']
+      });
+
+      setTimeout(() => refreshBalances(), 2000);
+    } catch (err) {
+      console.error("[MysteryField] Cash out error:", err);
+      alert("Failed to process payout. Please contact support.");
+    } finally {
+      setIsCashingOut(false);
+    }
   };
 
   return (
@@ -152,233 +212,205 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
       initial={{ opacity: 0, scale: 0.95, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: 20 }}
-      className="relative w-full max-w-6xl h-[85vh] flex bg-wager-charcoal/90 backdrop-blur-3xl rounded-[3rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] border border-white/10"
+      transition={{ type: "spring", bounce: 0.2 }}
+      className={`relative w-full max-w-6xl h-[80vh] flex glass-card overflow-hidden transition-colors duration-500 ${
+        gameState === "bust" ? "border-wager-red/50 shadow-[0_0_50px_rgba(255,0,0,0.2)]" : "border-wager-cyan/20"
+      }`}
     >
-      {/* Left Pane: Controls */}
-      <div className="w-[350px] bg-slate-950/80 border-r border-white/5 p-8 flex flex-col justify-between relative z-50 shadow-2xl">
+      <AnimatePresence>
+        {gameState === "bust" && (
+          <motion.div
+            initial={{ opacity: 0.8 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            className="absolute inset-0 bg-wager-red/40 z-50 pointer-events-none"
+          />
+        )}
+        {gameState === "cashout" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center"
+          >
+             <h1 className="text-8xl font-black text-wager-lime uppercase italic tracking-widest drop-shadow-[0_0_30px_rgba(204,255,0,0.8)]">LOOT SECURED</h1>
+             <p className="text-3xl font-mono text-white mt-4">+ {currentWin} WAGER</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Left Pane: Control Desk */}
+      <div className="w-1/3 bg-slate-950/80 border-r border-white/10 p-8 flex flex-col justify-between relative z-50">
         <div>
-          <div className="flex items-center gap-4 mb-10">
-            <div className="p-3 bg-wager-cyan/20 border border-wager-cyan/50 rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.2)]">
-              <Target className="text-wager-cyan" size={28} />
+          <div className="flex items-center gap-3 mb-10">
+            <div className="p-3 bg-wager-cyan/20 rounded-full border border-wager-cyan/40">
+              <Grid3X3 className="text-wager-cyan" size={28} />
             </div>
-            <div>
-              <h3 className="text-xl font-black text-white tracking-widest uppercase italic leading-none">Mystery</h3>
-              <span className="text-[10px] text-wager-cyan font-bold uppercase tracking-widest">Field Sweep</span>
-            </div>
+            <h3 className="text-2xl font-black text-white tracking-widest uppercase">Mystery Field</h3>
           </div>
 
-          <div className="space-y-6">
-            <div className="p-5 bg-gradient-to-br from-slate-900 to-black border border-wager-cyan/20 rounded-2xl shadow-inner relative overflow-hidden group">
-              <div className="absolute inset-0 bg-wager-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2 block relative z-10">Potential Payout</span>
-              <div className="flex justify-between items-end relative z-10">
-                <span className="text-3xl font-black text-white leading-none tracking-tighter">
-                  {currentMultiplier.toFixed(1)}<span className="text-wager-cyan text-lg ml-1">x</span>
-                </span>
-                <span className="text-[9px] text-wager-cyan font-mono bg-wager-cyan/10 px-2 py-0.5 rounded border border-wager-cyan/20">
-                  {selectedBlocks.length} / 10 PICKS
-                </span>
-              </div>
-              <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center relative z-10">
-                 <span className="text-[10px] text-zinc-600 font-bold uppercase">WINNINGS</span>
-                 <span className="text-sm font-mono text-wager-cyan font-bold">{potentialPayout} $WAGER</span>
+          <div className="space-y-8">
+            <div className="space-y-3">
+              <label className="text-xs text-zinc-400 uppercase font-bold tracking-wider flex justify-between">
+                <span>Hazard Risk (Bombs)</span>
+                <span className="text-wager-red font-black">{bombs} BOMBS</span>
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="29"
+                value={bombs}
+                onChange={(e) => setBombs(parseInt(e.target.value))}
+                disabled={gameState === "playing"}
+                className={`w-full accent-wager-red h-3 bg-zinc-800 rounded-lg appearance-none ${gameState === "playing" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              />
+              <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+                <span>1 (Safe)</span>
+                <span>29 (Insane)</span>
               </div>
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] text-zinc-400 uppercase font-bold tracking-widest px-1">
-                $WAGER Stake
+              <label className="text-xs text-zinc-400 uppercase font-bold tracking-wider">
+                Wager Amount ($WAGER)
               </label>
-              <div className="w-full bg-slate-900 border border-white/10 rounded-2xl p-4 flex items-center focus-within:border-wager-cyan focus-within:shadow-[0_0_15px_rgba(0,255,255,0.2)] transition-all shadow-lg">
-                <Coins className="text-wager-cyan mr-3" size={20} />
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={wager}
-                  onChange={(e) => setWager(e.target.value)}
-                  disabled={gameState !== "setup"}
-                  className="bg-transparent text-2xl font-mono text-white outline-none w-full placeholder:text-zinc-800"
-                />
-              </div>
-
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] text-zinc-600 font-black uppercase">Bal:</span>
-                  <span className="text-[10px] font-mono text-wager-cyan font-bold">{balances.wager}</span>
+              <div className="flex flex-col gap-3">
+                <div className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 flex items-center focus-within:border-wager-cyan transition-colors">
+                  <Coins className="text-wager-cyan mr-3" size={24} />
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={wager}
+                    onChange={(e) => setWager(e.target.value)}
+                    disabled={gameState === "playing"}
+                    className="bg-transparent text-3xl font-mono text-white outline-none w-full placeholder:text-zinc-700 disabled:opacity-50"
+                  />
                 </div>
-                <div className="flex gap-1">
-                  {["25", "50", "75", "MAX"].map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => handleQuickSelect(p)}
-                      disabled={gameState !== "setup"}
-                      className="px-2 py-1 bg-slate-900 border border-white/5 rounded-md text-[9px] font-bold text-zinc-500 hover:text-wager-cyan hover:border-wager-cyan/30 hover:bg-wager-cyan/5 transition-all"
-                    >
-                      {p}%
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mt-2 px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Balance:</span>
+                    <span className="text-[11px] font-mono text-wager-cyan font-bold">{balances.wager} $WAGER</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {["25", "50", "75", "MAX"].map((percent) => (
+                      <button
+                         key={percent}
+                         onClick={() => handleQuickSelect(percent)}
+                         disabled={gameState === "playing" || !isConnected}
+                         className="px-2.5 py-1 bg-black/40 border border-white/10 rounded-md text-[10px] font-bold text-zinc-400 hover:text-wager-cyan hover:border-wager-cyan/50 transition-all disabled:opacity-50"
+                       >
+                         {percent === "MAX" ? "MAX" : `${percent}%`}
+                       </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="pt-4">
-              <button
-                onClick={initiateSweep}
-                disabled={gameState !== "setup" || selectedBlocks.length < 1 || !wager || parseFloat(wager) <= 0 || isProcessing}
-                className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl flex items-center justify-center gap-3 relative overflow-hidden group
-                  ${(selectedBlocks.length < 1 || !wager || isProcessing || gameState !== "setup")
-                    ? "bg-slate-900 text-zinc-600 cursor-not-allowed border border-white/5"
-                    : "bg-wager-cyan text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_30px_rgba(0,255,255,0.4)]"
-                  }`}
-              >
-                {isProcessing && <Loader2 className="animate-spin relative z-10" size={24} />}
-                <span className="relative z-10">{isProcessing ? "Sweeping..." : "Initiate Sweep"}</span>
-                {!isProcessing && selectedBlocks.length >= 1 && (
-                  <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300" />
-                )}
-              </button>
-              {selectedBlocks.length > 5 && gameState === "setup" && (
-                <p className="text-[10px] text-center text-wager-red uppercase font-bold mt-3 animate-pulse">WARNING: 100% LOSS GUARANTEED</p>
-              )}
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex gap-3">
-            <Info size={16} className="text-wager-cyan shrink-0 mt-0.5" />
-            <p className="text-[10px] text-zinc-400 leading-relaxed font-medium">
-              30 squares. 25 hidden hazards. 5 safe zones. Survive the sweep to win big.
-            </p>
-          </div>
-          <button 
-            onClick={onClose}
-            className="w-full py-4 text-xs font-black text-zinc-600 hover:text-white tracking-widest transition-colors border border-transparent hover:border-white/10 rounded-2xl"
-          >
-            ABORT MISSION
+        <div className="mt-8 space-y-4">
+          {gameState === "setup" ? (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={!isConnected ? connect : startGame}
+              disabled={isProcessing || (isConnected && (!wager || parseFloat(wager) <= 0))}
+              className="w-full bg-wager-cyan text-black font-black text-xl uppercase tracking-widest py-5 rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.3)] hover:shadow-[0_0_40px_rgba(0,255,255,0.6)] transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isProcessing ? <><Loader2 className="animate-spin" size={24} /> Processing...</> : !isConnected ? "Connect Wallet" : "Start Game"}
+            </motion.button>
+          ) : gameState === "playing" && safeClicks > 0 ? (
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => cashOut()}
+              disabled={isCashingOut}
+              className="w-full bg-wager-lime text-black font-black text-xl uppercase tracking-widest py-5 rounded-2xl shadow-[0_0_30px_rgba(204,255,0,0.5)] hover:shadow-[0_0_50px_rgba(204,255,0,0.7)] animate-pulse transition-all disabled:opacity-50 disabled:animate-none"
+            >
+              {isCashingOut ? <><Loader2 className="animate-spin inline mr-2" size={24} /> Cashing Out...</> : `Cash Out ${currentWin}`}
+            </motion.button>
+          ) : (gameState === "bust" || gameState === "cashout") ? (
+            <button
+              onClick={() => setGameState("setup")}
+              className="w-full bg-white text-black font-black text-xl uppercase tracking-widest py-5 rounded-2xl hover:bg-zinc-200 transition-colors z-50 relative"
+            >
+              {gameState === "bust" ? "Try Again (Rekt)" : "Play Again"}
+            </button>
+          ) : (
+            <button disabled className="w-full bg-zinc-900 border border-white/5 text-zinc-600 font-black text-xl uppercase tracking-widest py-5 rounded-2xl cursor-not-allowed">
+              Playing...
+            </button>
+          )}
+          
+          <button onClick={onClose} className="w-full py-3 text-sm font-bold text-zinc-500 hover:text-white transition-colors relative z-50">
+            EXIT GAME
           </button>
         </div>
       </div>
 
-      {/* Right Pane: The Grid Area */}
-      <div className="flex-1 relative flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0f172a_0%,_#020617_100%)] p-12">
-        {/* Background Grids */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(#00ffff 1px, transparent 1px), linear-gradient(90deg, #00ffff 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-        
-        {/* Central UI (Win/Loss Overlays) */}
-        <div className="absolute top-10 w-full text-center z-40 pointer-events-none">
-          <AnimatePresence mode="wait">
-            {gameState === "win" && (
-              <motion.div key="win" initial={{ scale: 0.5, y: -50, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} className="flex flex-col items-center drop-shadow-[0_0_50px_rgba(0,255,255,0.8)]">
-                <h2 className="text-7xl font-black text-wager-cyan uppercase tracking-widest italic">SWEEP CLEAR</h2>
-                <div className="bg-black/50 backdrop-blur-md px-8 py-2 rounded-full border border-wager-cyan/50 mt-4 flex items-center gap-3">
-                   <Coins size={24} className="text-wager-cyan" />
-                   <span className="text-2xl font-mono text-white font-bold">+{lastWinAmount} WAGER</span>
-                </div>
-              </motion.div>
-            )}
-            {gameState === "loss" && (
-              <motion.div key="loss" initial={{ scale: 1.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="drop-shadow-[0_0_50px_rgba(255,0,0,0.8)]">
-                <h2 className="text-7xl font-black text-wager-red uppercase tracking-widest italic">HAZARD TRIGGERED</h2>
-                <span className="text-sm text-zinc-400 font-mono font-bold tracking-widest uppercase mt-4 block">Stake Annihilated</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Right Pane: Center Stage (Grid & HUD) */}
+      <div className="w-2/3 p-12 flex flex-col items-center justify-center relative overflow-hidden bg-slate-950">
+        {/* Massive Background Glow */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-wager-cyan/10 via-transparent to-transparent pointer-events-none" />
+
+        {/* Progressive HUD */}
+        <div className="w-full max-w-2xl flex justify-between items-end mb-10 z-10">
+          <div>
+            <span className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-2 block">
+              Potential Win
+            </span>
+            <div className="text-3xl font-mono text-wager-lime font-bold">
+              {currentWin} WAGER
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-2 block">
+              Current Multiplier
+            </span>
+            <div className="text-7xl font-black text-white tracking-tighter">
+              {multiplier.toFixed(2)}<span className="text-wager-cyan text-5xl">x</span>
+            </div>
+          </div>
         </div>
 
-        {/* 5x6 Grid */}
-        <div className="relative z-20 w-full max-w-4xl aspect-[6/5] grid grid-cols-6 grid-rows-5 gap-3">
-          {Array.from({ length: 30 }).map((_, idx) => {
-            const isSelected = selectedBlocks.includes(idx);
-            const isHazard = hazardBlocks.includes(idx);
-            
-            // Post-game Reveal States
-            const isRevealed = gameState === "win" || gameState === "loss";
-            const showHazard = isRevealed && isHazard;
-            const showSafe = isRevealed && !isHazard;
-            const isExploded = gameState === "loss" && isSelected && isHazard;
+        {/* 30-Box Grid */}
+        <div className="w-full max-w-3xl grid grid-cols-6 gap-3 z-10">
+          {boxes.map((box, idx) => {
+            const isRevealed = box.isRevealed || gameState === "bust" || gameState === "cashout";
+            const isSafe = isRevealed && !box.isBomb;
 
             return (
-              <button
-                key={idx}
-                onClick={() => toggleBlock(idx)}
-                disabled={gameState !== "setup"}
-                className={`relative group rounded-lg transition-all duration-300 border-2 overflow-hidden flex items-center justify-center
-                  ${gameState === "setup" 
-                    ? isSelected 
-                      ? "bg-wager-cyan/20 border-wager-cyan shadow-[0_0_20px_rgba(0,255,255,0.3)] scale-[1.03] z-10" 
-                      : "bg-slate-900 border-slate-700 hover:bg-slate-800 hover:border-wager-cyan/50 hover:shadow-[0_0_15px_rgba(0,255,255,0.1)]" 
-                    : "border-transparent bg-slate-900"}
-                  ${isExploded ? "bg-wager-red border-wager-red shadow-[0_0_40px_rgba(255,0,0,0.6)] z-20 scale-110" : ""}
-                  ${showHazard && !isExploded ? "bg-wager-red/20 border-wager-red/40" : ""}
-                  ${showSafe && isSelected && gameState === "win" ? "bg-wager-lime/40 border-wager-lime shadow-[0_0_30px_rgba(204,255,0,0.5)] z-20 scale-110" : ""}
-                  ${showSafe && !isSelected ? "bg-wager-lime/10 border-wager-lime/20" : ""}
-                `}
+              <motion.button
+                key={box.id}
+                whileHover={gameState === "playing" && !isRevealed ? { scale: 1.05 } : {}}
+                whileTap={gameState === "playing" && !isRevealed ? { scale: 0.95 } : {}}
+                onClick={() => handleBoxClick(idx)}
+                disabled={gameState !== "playing" || isRevealed}
+                className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-300 border-2 overflow-hidden ${
+                  !isRevealed
+                    ? "bg-zinc-900 border-zinc-700/50 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] hover:border-wager-cyan hover:bg-zinc-800"
+                    : isSafe
+                    ? "bg-wager-lime/20 border-wager-lime text-wager-lime shadow-[0_0_15px_rgba(204,255,0,0.3)]"
+                    : "bg-wager-red/20 border-wager-red text-wager-red shadow-[0_0_15px_rgba(255,0,0,0.4)]"
+                }`}
               >
-                {/* Number Indicator (Setup only) */}
-                {gameState === "setup" && !isSelected && (
-                  <span className="text-[10px] font-mono text-slate-600 opacity-50">{idx + 1}</span>
-                )}
-
                 <AnimatePresence>
-                  {/* Selected Indicator */}
-                  {isSelected && !isRevealed && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                      <Target size={24} className="text-wager-cyan drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
-                    </motion.div>
-                  )}
-
-                  {/* Reveal Icons */}
-                  {isExploded && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }} transition={{ duration: 0.5 }}>
-                      <Bomb size={36} className="text-white drop-shadow-md" />
-                    </motion.div>
-                  )}
-                  {showHazard && !isExploded && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }}>
-                      <Bomb size={24} className="text-wager-red" />
-                    </motion.div>
-                  )}
-                  {showSafe && isSelected && gameState === "win" && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <Shield size={36} className="text-white drop-shadow-md" />
-                    </motion.div>
-                  )}
-                  {showSafe && !isSelected && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.3 }}>
-                      <Shield size={24} className="text-wager-lime" />
+                  {isRevealed && (
+                    <motion.div
+                      initial={{ scale: 0, rotate: -45, opacity: 0 }}
+                      animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className="w-full h-full flex items-center justify-center"
+                    >
+                      {isSafe ? <Gift size={32} className="drop-shadow-lg" /> : <Bomb size={32} className="animate-pulse drop-shadow-xl" />}
                     </motion.div>
                   )}
                 </AnimatePresence>
-
-                {/* Glitch Overlay Effect on Explode */}
-                {isExploded && (
-                  <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0, 0.8, 0] }} transition={{ duration: 0.5 }}
-                    className="absolute inset-0 bg-white mix-blend-overlay pointer-events-none"
-                  />
-                )}
-              </button>
+              </motion.button>
             );
           })}
         </div>
-
-        {/* Play Again Button */}
-        <AnimatePresence>
-          {(gameState === "win" || gameState === "loss") && (
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-              className="absolute bottom-12 z-[60]"
-            >
-              <button
-                onClick={resetGame}
-                className="bg-white text-black font-black uppercase tracking-[0.2em] px-16 py-5 rounded-2xl hover:bg-slate-200 hover:scale-105 active:scale-95 transition-all text-xl shadow-2xl border-4 border-black"
-              >
-                Reset Field
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </motion.div>
   );
