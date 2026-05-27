@@ -222,12 +222,17 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
                 onClick={takeShot}
                 disabled={gameState !== "setup" || selectedZones.length < 2 || !wager || parseFloat(wager) <= 0 || isProcessing}
                 className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl flex items-center justify-center gap-3
-                  ${(selectedZones.length < 2 || !wager || isProcessing)
+                  ${isProcessing
+                    ? "bg-amber-950/60 text-amber-400 cursor-not-allowed border border-amber-500/30 animate-pulse"
+                    : (selectedZones.length < 2 || !wager)
                     ? "bg-wager-charcoal text-zinc-600 cursor-not-allowed border border-white/5"
                     : "bg-wager-lime text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_30px_rgba(204,255,0,0.4)] hover:shadow-[0_0_50px_rgba(204,255,0,0.6)]"
                   }`}
               >
-                {isProcessing ? <><Loader2 className="animate-spin" size={24} /> Processing</> : "Take Shot"}
+                {isProcessing
+                  ? <><Loader2 className="animate-spin" size={20} /> Awaiting Wallet...</>
+                  : "Take Shot"
+                }
               </button>
               {selectedZones.length < 2 && gameState === "setup" && (
                 <p className="text-[9px] text-center text-wager-cyan uppercase font-bold mt-3 animate-pulse">Select at least 2 target zones</p>

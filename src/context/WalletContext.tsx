@@ -282,61 +282,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transaction.freeze();
       }
 
-      // ─── Step 2: Get the Signer ──────────────────────────────────────────
+      // ─── Step 2: Get Signer & Execute (no timeout — let wallet resolve natively) ─
+      // IMPORTANT: Never wrap with a timeout or fallback. Doing so causes the
+      // same frozen TransactionId to be submitted twice → DUPLICATE_TRANSACTION.
+      // The HashPack wallet handles the promise lifecycle; we just await it.
       // @ts-ignore - version mismatch
       const signer = hashconnect.getSigner(accountIdObj as any) as any;
 
-      console.log("[WagerWallet] Executing transaction with Signer...");
+      console.log("[WagerWallet] Awaiting wallet approval...");
 
-      // ── 15-second timeout race ───────────────────────────────────────────
-      // verify.walletconnect.com returns 400 for unregistered domains,
-      // causing executeWithSigner to hang silently. We race every attempt
-      // against a 15s timeout so the UI never freezes.
-      const TIMEOUT_MS = 15_000;
+      // Use signer.call() — the native HashConnect V3 method.
+      // It sends a single hedera_signAndExecuteTransaction request to HashPack
+      // and resolves only when the user approves or rejects. No fallback.
+      const response = await signer.call(transaction);
 
-      const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
-        Promise.race([
-          p,
-          new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error(
-                `Transaction timed out after ${TIMEOUT_MS / 1000}s. ` +
-                `Your domain may not be verified on WalletConnect Cloud. ` +
-                `Go to cloud.walletconnect.com → your project → Allowed Domains → add wagerhub.vercel.app. ` +
-                `Or try disconnecting and reconnecting your wallet.`
-              )),
-              TIMEOUT_MS
-            )
-          ),
-        ]);
-
-      let response: any;
-
-      // Strategy A: signer.call() — uses hedera_signAndExecuteTransaction
-      // which does NOT require verify.walletconnect.com attestation.
-      if (typeof signer.call === "function") {
-        try {
-          console.log("[WagerWallet] Trying signer.call()...");
-          response = await withTimeout(signer.call(transaction));
-          console.log("[WagerWallet] signer.call() succeeded:", response);
-        } catch (callErr: any) {
-          const callMsg: string = callErr?.message || "";
-          // If it's a real rejection (not a timeout), re-throw immediately
-          if (!callMsg.includes("timed out")) {
-            throw callErr;
-          }
-          // Timed out — fall through to Strategy B
-          console.warn("[WagerWallet] signer.call() timed out, falling back to executeWithSigner...");
-          response = await withTimeout((transaction as any).executeWithSigner(signer));
-          console.log("[WagerWallet] executeWithSigner() succeeded:", response);
-        }
-      } else {
-        // Strategy B: classic executeWithSigner (may be blocked by attestation)
-        response = await withTimeout((transaction as any).executeWithSigner(signer));
-        console.log("[WagerWallet] executeWithSigner() succeeded:", response);
-      }
-
-      console.log("[WagerWallet] Transaction response:", response);
+      console.log("[WagerWallet] Transaction approved:", response);
       return {
         txId: response?.transactionId ? response.transactionId.toString() : null,
         status: "SUCCESS"
