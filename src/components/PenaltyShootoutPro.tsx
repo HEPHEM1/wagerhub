@@ -31,6 +31,18 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
 
   const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
 
+  // ── Auto-reset after GOAL or SAVED ─────────────────────────────────────────
+  useEffect(() => {
+    if (gameState === "goal" || gameState === "saved") {
+      const timer = setTimeout(() => {
+        setGameState("setup");
+        setSelectedZones([]);
+        setKeeperZones([]);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState]);
+
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
     const total = parseFloat(balances.wager);
@@ -344,17 +356,31 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
                   `}
                 >
                   <AnimatePresence>
-                    {isSelected && (
-                      <motion.div 
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className={`absolute inset-0 flex items-center justify-center
-                          ${gameState === "goal" ? "bg-wager-lime/40" : gameState === "saved" ? isKeeperZone ? "bg-wager-red/60 animate-pulse" : "bg-wager-lime/20" : ""}
-                        `}
-                      >
-                         {gameState === "goal" && <Target size={48} className="text-white drop-shadow-lg" />}
-                         {gameState === "saved" && isKeeperZone && <XCircle size={64} className="text-white drop-shadow-xl animate-bounce" />}
-                      </motion.div>
-                    )}
+                   {/* Goal → all selected zones glow green */}
+                   {gameState === "goal" && isSelected && (
+                     <motion.div
+                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                       className="absolute inset-0 bg-green-500/50 shadow-[inset_0_0_30px_rgba(34,197,94,0.8)] flex items-center justify-center"
+                     >
+                       <Target size={48} className="text-white drop-shadow-lg" />
+                     </motion.div>
+                   )}
+                   {/* Saved → blocked (overlapped) zones flash red, other selected zones dim */}
+                   {gameState === "saved" && isOverlapped && (
+                     <motion.div
+                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                       className="absolute inset-0 bg-red-500/70 animate-pulse shadow-[inset_0_0_30px_rgba(239,68,68,1)] flex items-center justify-center"
+                     >
+                       <XCircle size={64} className="text-white drop-shadow-xl" />
+                     </motion.div>
+                   )}
+                   {/* Saved → non-blocked selected zones still show (dimmed) */}
+                   {gameState === "saved" && isSelected && !isOverlapped && (
+                     <motion.div
+                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                       className="absolute inset-0 bg-wager-lime/20 flex items-center justify-center"
+                     />
+                   )}
                     {isKeeperZone && (gameState === "goal" || gameState === "saved") && !isSelected && (
                       <motion.div 
                         initial={{ opacity: 0 }} animate={{ opacity: 0.3 }}
