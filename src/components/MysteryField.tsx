@@ -381,41 +381,41 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         {/* 30-Box Grid */}
         <div className="w-full max-w-3xl grid grid-cols-6 gap-3 z-10">
           {boxes.map((box, idx) => {
-            // A box is "actively revealed" if the player clicked it themselves
-            const activelyRevealed = box.isRevealed;
-            // A box is "passively revealed" (post-game) if the game ended but the player didn't click it
-            const gameOver = gameState === "bust" || gameState === "cashout";
-            const passivelyRevealed = gameOver && !box.isRevealed;
-            const isRevealed = activelyRevealed || passivelyRevealed;
-            const isSafe = isRevealed && !box.isBomb;
-
-            // Determine block background class
-            let blockClass = "bg-zinc-900 border-zinc-700/50 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] hover:border-wager-cyan hover:bg-zinc-800";
-            if (activelyRevealed) {
-              blockClass = isSafe
-                ? "bg-green-500/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
-                : "bg-red-500/30 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse";
-            } else if (passivelyRevealed) {
-              blockClass = isSafe
-                ? "bg-zinc-900/80 border-zinc-700/30"
-                : "bg-zinc-900/80 border-zinc-700/30";
-            }
+            // A box is "actively revealed" if the player clicked it
+            const isActiveReveal = box.isRevealed;
+            // After game ends, all remaining boxes are dimly revealed
+            const isPostGameReveal = !box.isRevealed && (gameState === "bust" || gameState === "cashout");
+            const isRevealed = isActiveReveal || isPostGameReveal;
+            const isSafe = !box.isBomb;
 
             return (
               <motion.button
                 key={box.id}
-                whileHover={gameState === "playing" && !box.isRevealed ? { scale: 1.05 } : {}}
-                whileTap={gameState === "playing" && !box.isRevealed ? { scale: 0.95 } : {}}
+                whileHover={gameState === "playing" && !isRevealed ? { scale: 1.05 } : {}}
+                whileTap={gameState === "playing" && !isRevealed ? { scale: 0.95 } : {}}
                 onClick={() => handleBoxClick(idx)}
                 disabled={gameState !== "playing" || box.isRevealed}
-                className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-300 border-2 overflow-hidden ${blockClass}`}
+                className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-300 border-2 overflow-hidden ${
+                  !isRevealed
+                    ? "bg-zinc-900 border-zinc-700/50 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] hover:border-wager-cyan hover:bg-zinc-800"
+                    : isActiveReveal && isSafe
+                    ? "bg-green-500/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                    : isActiveReveal && !isSafe
+                    ? "bg-red-500/30 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse"
+                    : isPostGameReveal && isSafe
+                    ? "bg-zinc-900/60 border-zinc-700/30"
+                    : "bg-zinc-900/60 border-zinc-700/30"
+                }`}
               >
                 <AnimatePresence>
                   {isRevealed && (
                     <motion.div
-                      initial={activelyRevealed ? { scale: 0, rotate: -20, opacity: 0 } : { opacity: 0 }}
+                      initial={isActiveReveal ? { scale: 0, rotate: -30, opacity: 0 } : { opacity: 0 }}
                       animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      transition={isActiveReveal
+                        ? { type: "spring", stiffness: 300, damping: 20 }
+                        : { duration: 0.4, delay: idx * 0.015 }
+                      }
                       className="w-full h-full flex items-center justify-center p-2"
                     >
                       {isSafe ? (
@@ -423,7 +423,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
                           src="/gift.png"
                           alt="Fortune Box"
                           className={`w-full h-full object-contain ${
-                            activelyRevealed
+                            isActiveReveal
                               ? "drop-shadow-[0_0_15px_rgba(34,197,94,0.9)]"
                               : "opacity-50"
                           }`}
@@ -433,7 +433,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
                           src="/bomb.png"
                           alt="Bomb"
                           className={`w-full h-full object-contain ${
-                            activelyRevealed
+                            isActiveReveal
                               ? "drop-shadow-[0_0_15px_rgba(239,68,68,0.9)]"
                               : "opacity-50"
                           }`}
