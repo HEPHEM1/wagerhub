@@ -282,36 +282,63 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transaction.freeze();
       }
 
-      // ─── Step 2: Use the V3 Signer Implementation ───────────────────────
+      // ─── Step 2: Get the Signer ──────────────────────────────────────────
       // @ts-ignore - version mismatch
-      const signer = hashconnect.getSigner(accountIdObj as any);
+      const signer = hashconnect.getSigner(accountIdObj as any) as any;
 
       console.log("[WagerWallet] Executing transaction with Signer...");
 
-      // ── Race the transaction against a 45s timeout ──────────────────────
-      // verify.walletconnect.com can return a 400 for unverified domains,
-      // which causes executeWithSigner to hang without throwing. The race
-      // ensures the UI never freezes longer than 45 seconds.
-      const TIMEOUT_MS = 45_000;
-      // Cast to any to bypass SDK version mismatch on executeWithSigner
-      const txAsAny = transaction as any;
-      const response = await Promise.race([
-        txAsAny.executeWithSigner(signer) as Promise<any>,
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(
-              `Transaction timed out after ${TIMEOUT_MS / 1000}s. ` +
-              `This is usually caused by a WalletConnect attestation issue. ` +
-              `Please try again or re-connect your wallet.`
-            )),
-            TIMEOUT_MS
-          )
-        ),
-      ]);
+      // ── 15-second timeout race ───────────────────────────────────────────
+      // verify.walletconnect.com returns 400 for unregistered domains,
+      // causing executeWithSigner to hang silently. We race every attempt
+      // against a 15s timeout so the UI never freezes.
+      const TIMEOUT_MS = 15_000;
+
+      const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
+        Promise.race([
+          p,
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error(
+                `Transaction timed out after ${TIMEOUT_MS / 1000}s. ` +
+                `Your domain may not be verified on WalletConnect Cloud. ` +
+                `Go to cloud.walletconnect.com → your project → Allowed Domains → add wagerhub.vercel.app. ` +
+                `Or try disconnecting and reconnecting your wallet.`
+              )),
+              TIMEOUT_MS
+            )
+          ),
+        ]);
+
+      let response: any;
+
+      // Strategy A: signer.call() — uses hedera_signAndExecuteTransaction
+      // which does NOT require verify.walletconnect.com attestation.
+      if (typeof signer.call === "function") {
+        try {
+          console.log("[WagerWallet] Trying signer.call()...");
+          response = await withTimeout(signer.call(transaction));
+          console.log("[WagerWallet] signer.call() succeeded:", response);
+        } catch (callErr: any) {
+          const callMsg: string = callErr?.message || "";
+          // If it's a real rejection (not a timeout), re-throw immediately
+          if (!callMsg.includes("timed out")) {
+            throw callErr;
+          }
+          // Timed out — fall through to Strategy B
+          console.warn("[WagerWallet] signer.call() timed out, falling back to executeWithSigner...");
+          response = await withTimeout((transaction as any).executeWithSigner(signer));
+          console.log("[WagerWallet] executeWithSigner() succeeded:", response);
+        }
+      } else {
+        // Strategy B: classic executeWithSigner (may be blocked by attestation)
+        response = await withTimeout((transaction as any).executeWithSigner(signer));
+        console.log("[WagerWallet] executeWithSigner() succeeded:", response);
+      }
 
       console.log("[WagerWallet] Transaction response:", response);
       return {
-        txId: response.transactionId ? response.transactionId.toString() : null,
+        txId: response?.transactionId ? response.transactionId.toString() : null,
         status: "SUCCESS"
       };
     } catch (error: any) {
