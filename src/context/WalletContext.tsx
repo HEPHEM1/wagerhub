@@ -111,7 +111,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const setupHashConnect = async () => {
       try {
-        console.log("CRITICAL AUDIT - PROJECT ID:", process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "Hardcoded: " + WC_PROJECT_ID);
+        console.log("CRITICAL AUDIT - PROJECT ID: Hardcoded 37016fd71f4d35906f67ec93aa5225ec (env var not used)");
         console.log("CRITICAL AUDIT - METADATA URL:", typeof window !== "undefined" ? window.location.origin : "SSR");
 
         // ── Silence MetaMask/EVM wallet-detection noise from WalletConnect ──
@@ -290,35 +290,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       console.log("[WagerWallet] Awaiting wallet approval...");
 
-      // ── Event-driven cancellation ─────────────────────────────────────────
-      // When WalletConnect proposals expire or the connection drops, HashConnect
-      // fires disconnectionEvent / connectionStatusChangeEvent(Disconnected).
-      // signer.call()'s promise may NEVER settle in that case, freezing the UI.
-      // We race against a cancellationPromise that fires on those exact events.
-      // This avoids the DUPLICATE_TRANSACTION bug caused by arbitrary timeouts.
+      // ── Event-driven cancellation ─────────────────────────────────────────────
+      // WalletConnect fires disconnectionEvent as part of NORMAL session-request
+      // completion (after the user approves). We must NOT cancel if signer.call()
+      // has already settled. Use two flags: txSettled (call resolved/rejected)
+      // and txCancelled (cancellation already fired) to prevent race conditions.
+      let txSettled = false;   // true once signer.call() resolves or rejects
+      let txCancelled = false; // true once cancellation fires (no-ops after first)
       let cancelTx: ((reason: Error) => void) | null = null;
-      let txCancelled = false;
 
       const cancellationPromise = new Promise<never>((_, reject) => {
         cancelTx = (reason: Error) => {
-          if (!txCancelled) {
+          // Only fire if the real call hasn't already settled
+          if (!txCancelled && !txSettled) {
             txCancelled = true;
             reject(reason);
           }
         };
       });
 
-      // Listener: fires when connection drops or proposal expires
       const onDisconnect = () => {
-        cancelTx?.(new Error(
-          "Wallet disconnected or proposal expired. Please reconnect and try again."
-        ));
+        // Wait one tick — if signer.call() just resolved, txSettled will be true
+        setTimeout(() => {
+          cancelTx?.(new Error(
+            "Wallet disconnected or proposal expired. Please reconnect and try again."
+          ));
+        }, 200);
       };
       const onStatusChange = (state: HashConnectConnectionState) => {
         if (state === HashConnectConnectionState.Disconnected) {
-          cancelTx?.(new Error(
-            "Wallet connection lost (proposal may have expired). Please try again."
-          ));
+          setTimeout(() => {
+            cancelTx?.(new Error(
+              "Wallet connection lost (proposal may have expired). Please try again."
+            ));
+          }, 200);
         }
       };
 
@@ -331,17 +336,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           signer.call(transaction) as Promise<any>,
           cancellationPromise,
         ]);
-      } finally {
-        // Always clean up listeners — prevents accumulation across calls
-        // HashConnect events don't expose .off(), so we use the flag to no-op
+        txSettled = true; // signer.call() won the race
+      } catch (innerErr) {
+        txSettled = true; // also counts as settled (call rejected)
         txCancelled = true;
+        throw innerErr;
+      } finally {
+        txCancelled = true; // prevent any late-firing listeners from triggering
       }
 
-      console.log("[WagerWallet] Transaction approved:", response);
-      return {
-        txId: response?.transactionId ? response.transactionId.toString() : null,
-        status: "SUCCESS",
-      };
+      // ── Validate the Hedera network response ──────────────────────────────
+      // HashPack can approve a tx that the Hedera node still rejects (e.g.
+      // INSUFFICIENT_ACCOUNT_BALANCE, DUPLICATE_TRANSACTION). The response
+      // must be checked — a non-SUCCESS status is a real failure.
+      console.log("[WagerWallet] Raw response from signer.call():", JSON.stringify(response));
+
+      // Hedera SUCCESS status is numeric 22. Extract from common response shapes.
+      const rawStatus =
+        response?.nodeTransactionPrecheckCode ??
+        response?.transactionReceipt?.status ??
+        response?.receipt?.status ??
+        response?.status;
+
+      if (rawStatus !== undefined && rawStatus !== 22 && rawStatus !== "SUCCESS") {
+        throw new Error(
+          `Hedera network rejected the transaction. Status: ${rawStatus}. ` +
+          `This may be INSUFFICIENT_ACCOUNT_BALANCE, DUPLICATE_TRANSACTION, or another network error.`
+        );
+      }
+
+      const txId = response?.transactionId
+        ? (typeof response.transactionId === "string"
+          ? response.transactionId
+          : response.transactionId.toString())
+        : null;
+
+      console.log("[WagerWallet] Transaction confirmed on-chain. txId:", txId);
+      return { txId, status: "SUCCESS" };
     } catch (error: any) {
       const msg: string = error?.message || String(error);
 
@@ -352,14 +383,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         msg.includes("No injected provider")
       ) {
         console.debug("[WagerWallet] Suppressed EVM detection noise:", msg);
-        // This is not a real transaction failure — do not surface to the user
         return null;
       }
 
-      console.error("[WagerWallet] TRANSACTION FAILURE details:", {
+      // Full raw error for debugging Hedera rejection reasons
+      console.error("TX_EXECUTION_ERROR:", error);
+      console.error("TX_EXECUTION_ERROR (detail):", {
         message: msg,
         name: error?.name,
-        stack: error?.stack?.slice(0, 600),
+        code: error?.code,
+        status: error?.status,
+        transactionId: error?.transactionId?.toString?.(),
+        stack: error?.stack?.slice(0, 800),
       });
       setError(msg || "Transaction failed.");
       return null;
