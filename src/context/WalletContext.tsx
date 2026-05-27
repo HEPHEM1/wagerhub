@@ -283,13 +283,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       // ─── Step 2: Use the V3 Signer Implementation ───────────────────────
-      // @ts-ignore - version mismatch between SDK 2.81 and 2.41
+      // @ts-ignore - version mismatch
       const signer = hashconnect.getSigner(accountIdObj as any);
 
       console.log("[WagerWallet] Executing transaction with Signer...");
 
+      // ── Race the transaction against a 45s timeout ──────────────────────
+      // verify.walletconnect.com can return a 400 for unverified domains,
+      // which causes executeWithSigner to hang without throwing. The race
+      // ensures the UI never freezes longer than 45 seconds.
+      const TIMEOUT_MS = 45_000;
       // @ts-ignore - version mismatch
-      const response = await transaction.executeWithSigner(signer);
+      const response = await Promise.race([
+        transaction.executeWithSigner(signer) as Promise<any>,
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(
+              `Transaction timed out after ${TIMEOUT_MS / 1000}s. ` +
+              `This is usually caused by a WalletConnect attestation issue. ` +
+              `Please try again or re-connect your wallet.`
+            )),
+            TIMEOUT_MS
+          )
+        ),
+      ]);
 
       console.log("[WagerWallet] Transaction response:", response);
       return {
@@ -299,22 +316,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       const msg: string = error?.message || String(error);
 
-      // Suppress MetaMask noise — WalletConnect probes for EVM wallets internally
+      // Suppress MetaMask / EVM wallet-detection noise silently
       if (
         msg.includes("MetaMask") ||
         msg.includes("extension not found") ||
         msg.includes("No injected provider")
       ) {
-        console.debug("[WagerWallet] Suppressed EVM detection noise inside executeTransaction:", msg);
-        // Do NOT return null here — this isn't a real failure.
-        // Fall through: if response was obtained before this, it would have returned already.
-        // If we hit this it means the tx itself failed at a different layer — surface it.
+        console.debug("[WagerWallet] Suppressed EVM detection noise:", msg);
+        // This is not a real transaction failure — do not surface to the user
+        return null;
       }
 
       console.error("[WagerWallet] TRANSACTION FAILURE details:", {
         message: msg,
         name: error?.name,
-        stack: error?.stack?.slice(0, 500),
+        stack: error?.stack?.slice(0, 600),
       });
       setError(msg || "Transaction failed.");
       return null;
