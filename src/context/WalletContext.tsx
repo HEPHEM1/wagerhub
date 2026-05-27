@@ -6,18 +6,10 @@ import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgrap
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// Prefer the env var; fall back to the hardcoded value for resilience.
-const WC_PROJECT_ID =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
-  "37016fd71f4d35906f67ec93aa5225ec";
-
-if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
-  console.warn(
-    "[WagerWallet] ⚠️  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set in env. " +
-    "Using hardcoded fallback. Set this variable in Vercel to silence this warning."
-  );
-}
-
+// Hardcoded for relay stability — do NOT swap to an env var without verifying
+// the value is registered in WalletConnect Cloud (https://cloud.walletconnect.com).
+// An incorrect project ID causes the relay to close with code 3000 (Unauthorized).
+const WC_PROJECT_ID = "37016fd71f4d35906f67ec93aa5225ec";
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
