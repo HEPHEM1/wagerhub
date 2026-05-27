@@ -99,6 +99,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         const res = await executeTransaction(tx);
         if (!res) throw new Error("Transaction rejected");
         
+        setIsProcessing(false);
         setGameState("saved");
       } else {
         // Player Won -> 2.0x Multiplier
@@ -114,8 +115,12 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         const res = await executeTransaction(tx);
         if (!res) throw new Error("Transaction rejected");
 
-        // Payout
-        const payoutRes = await fetch("/api/payout", {
+        // Immediate UI Reveal — unblock the button and show Goal
+        setIsProcessing(false);
+        setGameState("goal");
+
+        // Payout (non-blocking, don't await)
+        fetch("/api/payout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
@@ -124,11 +129,11 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
             wagerAmount: wager,
             direction: 'GAME_WIN'
           })
-        });
-
-        if (!payoutRes.ok) throw new Error("Payout failed");
-        
-        setGameState("goal");
+        })
+        .then(async (payoutRes) => {
+          if (!payoutRes.ok) console.error("Payout failed:", await payoutRes.text());
+        })
+        .catch(err => console.error("Payout API error:", err));
         confetti({
           particleCount: 150,
           spread: 70,
