@@ -284,84 +284,52 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transaction.freeze();
       }
 
-      // ─── Step 2: Get Signer & Execute ────────────────────────────────────
-      // @ts-ignore - version mismatch
-      const signer = hashconnect.getSigner(accountIdObj as any) as any;
+      // ─── Step 2: Execute via hashconnect.sendTransaction ─────────────────
+      console.log("[WagerWallet] Awaiting wallet approval via sendTransaction...");
 
-      console.log("[WagerWallet] Awaiting wallet approval...");
+      // Instead of using the Signer wrapper which can hang or race, we use
+      // the native HashConnect v3 sendTransaction method directly.
+      const TIMEOUT_MS = 60_000;
+      let txSettled = false;
 
-      // ── Event-driven cancellation ─────────────────────────────────────────────
-      // WalletConnect fires disconnectionEvent as part of NORMAL session-request
-      // completion (after the user approves). We must NOT cancel if signer.call()
-      // has already settled. Use two flags: txSettled (call resolved/rejected)
-      // and txCancelled (cancellation already fired) to prevent race conditions.
-      let txSettled = false;   // true once signer.call() resolves or rejects
-      let txCancelled = false; // true once cancellation fires (no-ops after first)
-      let cancelTx: ((reason: Error) => void) | null = null;
-
-      const cancellationPromise = new Promise<never>((_, reject) => {
-        cancelTx = (reason: Error) => {
-          // Only fire if the real call hasn't already settled
-          if (!txCancelled && !txSettled) {
-            txCancelled = true;
-            reject(reason);
-          }
-        };
-      });
-
-      const onDisconnect = () => {
-        // Wait one tick — if signer.call() just resolved, txSettled will be true
+      const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
-          cancelTx?.(new Error(
-            "Wallet disconnected or proposal expired. Please reconnect and try again."
-          ));
-        }, 200);
-      };
-      const onStatusChange = (state: HashConnectConnectionState) => {
-        if (state === HashConnectConnectionState.Disconnected) {
-          setTimeout(() => {
-            cancelTx?.(new Error(
-              "Wallet connection lost (proposal may have expired). Please try again."
-            ));
-          }, 200);
-        }
-      };
-
-      hashconnect.disconnectionEvent.on(onDisconnect);
-      hashconnect.connectionStatusChangeEvent.on(onStatusChange);
+          if (!txSettled) {
+            reject(new Error("Transaction timed out. Please check your wallet or reconnect."));
+          }
+        }, TIMEOUT_MS);
+      });
 
       let response: any;
       try {
+        // @ts-ignore - version mismatch between HashConnect and Hedera SDK
+        const txPromise = hashconnect.sendTransaction(accountIdObj as any, transaction as any);
+        
         response = await Promise.race([
-          signer.call(transaction) as Promise<any>,
-          cancellationPromise,
+          txPromise,
+          timeoutPromise,
         ]);
-        txSettled = true; // signer.call() won the race
+        txSettled = true;
       } catch (innerErr) {
-        txSettled = true; // also counts as settled (call rejected)
-        txCancelled = true;
+        txSettled = true;
         throw innerErr;
-      } finally {
-        txCancelled = true; // prevent any late-firing listeners from triggering
       }
 
       // ── Validate the Hedera network response ──────────────────────────────
-      // HashPack can approve a tx that the Hedera node still rejects (e.g.
-      // INSUFFICIENT_ACCOUNT_BALANCE, DUPLICATE_TRANSACTION). The response
-      // must be checked — a non-SUCCESS status is a real failure.
-      console.log("[WagerWallet] Raw response from signer.call():", JSON.stringify(response));
+      console.log("[WagerWallet] Raw response from sendTransaction:", JSON.stringify(response));
 
-      // Hedera SUCCESS status is numeric 22. Extract from common response shapes.
+      // Hedera SUCCESS status is numeric 22. 
       const rawStatus =
         response?.nodeTransactionPrecheckCode ??
         response?.transactionReceipt?.status ??
         response?.receipt?.status ??
-        response?.status;
+        response?.status ??
+        response?.statusId; // Sometimes returned as statusId by HC
 
       if (rawStatus !== undefined && rawStatus !== 22 && rawStatus !== "SUCCESS") {
         throw new Error(
           `Hedera network rejected the transaction. Status: ${rawStatus}. ` +
-          `This may be INSUFFICIENT_ACCOUNT_BALANCE, DUPLICATE_TRANSACTION, or another network error.`
+          `Check your wallet balance and ensure you are not submitting duplicates.`
         );
       }
 
@@ -369,7 +337,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         ? (typeof response.transactionId === "string"
           ? response.transactionId
           : response.transactionId.toString())
-        : null;
+        : transaction.transactionId?.toString() || null;
 
       console.log("[WagerWallet] Transaction confirmed on-chain. txId:", txId);
       return { txId, status: "SUCCESS" };
