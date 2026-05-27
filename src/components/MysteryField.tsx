@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bomb, Gift, Coins, Grid3X3, Loader2 } from "lucide-react";
+import { Coins, Grid3X3, Loader2 } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
@@ -381,33 +381,64 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         {/* 30-Box Grid */}
         <div className="w-full max-w-3xl grid grid-cols-6 gap-3 z-10">
           {boxes.map((box, idx) => {
-            const isRevealed = box.isRevealed || gameState === "bust" || gameState === "cashout";
+            // A box is "actively revealed" if the player clicked it themselves
+            const activelyRevealed = box.isRevealed;
+            // A box is "passively revealed" (post-game) if the game ended but the player didn't click it
+            const gameOver = gameState === "bust" || gameState === "cashout";
+            const passivelyRevealed = gameOver && !box.isRevealed;
+            const isRevealed = activelyRevealed || passivelyRevealed;
             const isSafe = isRevealed && !box.isBomb;
+
+            // Determine block background class
+            let blockClass = "bg-zinc-900 border-zinc-700/50 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] hover:border-wager-cyan hover:bg-zinc-800";
+            if (activelyRevealed) {
+              blockClass = isSafe
+                ? "bg-green-500/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                : "bg-red-500/30 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse";
+            } else if (passivelyRevealed) {
+              blockClass = isSafe
+                ? "bg-zinc-900/80 border-zinc-700/30"
+                : "bg-zinc-900/80 border-zinc-700/30";
+            }
 
             return (
               <motion.button
                 key={box.id}
-                whileHover={gameState === "playing" && !isRevealed ? { scale: 1.05 } : {}}
-                whileTap={gameState === "playing" && !isRevealed ? { scale: 0.95 } : {}}
+                whileHover={gameState === "playing" && !box.isRevealed ? { scale: 1.05 } : {}}
+                whileTap={gameState === "playing" && !box.isRevealed ? { scale: 0.95 } : {}}
                 onClick={() => handleBoxClick(idx)}
-                disabled={gameState !== "playing" || isRevealed}
-                className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-300 border-2 overflow-hidden ${
-                  !isRevealed
-                    ? "bg-zinc-900 border-zinc-700/50 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] hover:border-wager-cyan hover:bg-zinc-800"
-                    : isSafe
-                    ? "bg-wager-lime/20 border-wager-lime text-wager-lime shadow-[0_0_15px_rgba(204,255,0,0.3)]"
-                    : "bg-wager-red/20 border-wager-red text-wager-red shadow-[0_0_15px_rgba(255,0,0,0.4)]"
-                }`}
+                disabled={gameState !== "playing" || box.isRevealed}
+                className={`aspect-square rounded-xl flex items-center justify-center transition-all duration-300 border-2 overflow-hidden ${blockClass}`}
               >
                 <AnimatePresence>
                   {isRevealed && (
                     <motion.div
-                      initial={{ scale: 0, rotate: -45, opacity: 0 }}
+                      initial={activelyRevealed ? { scale: 0, rotate: -20, opacity: 0 } : { opacity: 0 }}
                       animate={{ scale: 1, rotate: 0, opacity: 1 }}
                       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                      className="w-full h-full flex items-center justify-center"
+                      className="w-full h-full flex items-center justify-center p-2"
                     >
-                      {isSafe ? <Gift size={32} className="drop-shadow-lg" /> : <Bomb size={32} className="animate-pulse drop-shadow-xl" />}
+                      {isSafe ? (
+                        <img
+                          src="/gift.png"
+                          alt="Fortune Box"
+                          className={`w-full h-full object-contain ${
+                            activelyRevealed
+                              ? "drop-shadow-[0_0_15px_rgba(34,197,94,0.9)]"
+                              : "opacity-50"
+                          }`}
+                        />
+                      ) : (
+                        <img
+                          src="/bomb.png"
+                          alt="Bomb"
+                          className={`w-full h-full object-contain ${
+                            activelyRevealed
+                              ? "drop-shadow-[0_0_15px_rgba(239,68,68,0.9)]"
+                              : "opacity-50"
+                          }`}
+                        />
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
