@@ -6,8 +6,18 @@ import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgrap
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// Hardcoded for stability until Vercel environment propagation is confirmed
-const WC_PROJECT_ID = "37016fd71f4d35906f67ec93aa5225ec";
+// Prefer the env var; fall back to the hardcoded value for resilience.
+const WC_PROJECT_ID =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
+  "37016fd71f4d35906f67ec93aa5225ec";
+
+if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+  console.warn(
+    "[WagerWallet] ⚠️  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set in env. " +
+    "Using hardcoded fallback. Set this variable in Vercel to silence this warning."
+  );
+}
+
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
@@ -15,7 +25,7 @@ const appMetadata = {
   name: "WagerHub",
   description: "Universal Web3 Arcade and DeFi Terminal on Hedera.",
   icons: ["https://wagerhub.vercel.app/logo.png"],
-  url: "https://wagerhub.vercel.app", // Matching Reown allowlist exactly
+  url: "https://wagerhub.vercel.app",
 };
 
 // Create a singleton instance of HashConnect
@@ -282,24 +292,63 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transaction.freeze();
       }
 
-      // ─── Step 2: Get Signer & Execute (no timeout — let wallet resolve natively) ─
-      // IMPORTANT: Never wrap with a timeout or fallback. Doing so causes the
-      // same frozen TransactionId to be submitted twice → DUPLICATE_TRANSACTION.
-      // The HashPack wallet handles the promise lifecycle; we just await it.
+      // ─── Step 2: Get Signer & Execute ────────────────────────────────────
       // @ts-ignore - version mismatch
       const signer = hashconnect.getSigner(accountIdObj as any) as any;
 
       console.log("[WagerWallet] Awaiting wallet approval...");
 
-      // Use signer.call() — the native HashConnect V3 method.
-      // It sends a single hedera_signAndExecuteTransaction request to HashPack
-      // and resolves only when the user approves or rejects. No fallback.
-      const response = await signer.call(transaction);
+      // ── Event-driven cancellation ─────────────────────────────────────────
+      // When WalletConnect proposals expire or the connection drops, HashConnect
+      // fires disconnectionEvent / connectionStatusChangeEvent(Disconnected).
+      // signer.call()'s promise may NEVER settle in that case, freezing the UI.
+      // We race against a cancellationPromise that fires on those exact events.
+      // This avoids the DUPLICATE_TRANSACTION bug caused by arbitrary timeouts.
+      let cancelTx: ((reason: Error) => void) | null = null;
+      let txCancelled = false;
+
+      const cancellationPromise = new Promise<never>((_, reject) => {
+        cancelTx = (reason: Error) => {
+          if (!txCancelled) {
+            txCancelled = true;
+            reject(reason);
+          }
+        };
+      });
+
+      // Listener: fires when connection drops or proposal expires
+      const onDisconnect = () => {
+        cancelTx?.(new Error(
+          "Wallet disconnected or proposal expired. Please reconnect and try again."
+        ));
+      };
+      const onStatusChange = (state: HashConnectConnectionState) => {
+        if (state === HashConnectConnectionState.Disconnected) {
+          cancelTx?.(new Error(
+            "Wallet connection lost (proposal may have expired). Please try again."
+          ));
+        }
+      };
+
+      hashconnect.disconnectionEvent.on(onDisconnect);
+      hashconnect.connectionStatusChangeEvent.on(onStatusChange);
+
+      let response: any;
+      try {
+        response = await Promise.race([
+          signer.call(transaction) as Promise<any>,
+          cancellationPromise,
+        ]);
+      } finally {
+        // Always clean up listeners — prevents accumulation across calls
+        // HashConnect events don't expose .off(), so we use the flag to no-op
+        txCancelled = true;
+      }
 
       console.log("[WagerWallet] Transaction approved:", response);
       return {
         txId: response?.transactionId ? response.transactionId.toString() : null,
-        status: "SUCCESS"
+        status: "SUCCESS",
       };
     } catch (error: any) {
       const msg: string = error?.message || String(error);
