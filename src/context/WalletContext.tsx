@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { HashConnect, HashConnectConnectionState, SessionData } from "hashconnect";
-import { LedgerId, Transaction, TransactionId, AccountId } from "@hashgraph/sdk";
+import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -111,6 +111,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       try {
         console.log("CRITICAL AUDIT - PROJECT ID:", process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "Hardcoded: " + WC_PROJECT_ID);
         console.log("CRITICAL AUDIT - METADATA URL:", typeof window !== "undefined" ? window.location.origin : "SSR");
+
+        // ── Silence MetaMask/EVM wallet-detection noise from WalletConnect ──
+        if (typeof window !== "undefined") {
+          window.addEventListener("unhandledrejection", (event) => {
+            const msg = event?.reason?.message || "";
+            if (
+              msg.includes("MetaMask") ||
+              msg.includes("extension not found") ||
+              msg.includes("ethereum") ||
+              msg.includes("No injected provider")
+            ) {
+              event.preventDefault();
+              console.debug("[WagerWallet] Suppressed EVM wallet-detection noise:", msg);
+            }
+          });
+        }
+
         await hashconnect.init();
 
         // Check if there is an existing pairing
@@ -247,40 +264,59 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const accountIdObj = AccountId.fromString(accountId);
 
-      // ─── Step 1: Ensure Transaction is properly frozen ──────────────────
-      // Standard Hedera practice: transaction must be frozen with a valid 
-      // TransactionId and NodeAccountIds before being signed.
+      // ─── Step 1: Freeze with valid TransactionId, multiple nodes & fee cap ──
       if (!transaction.isFrozen()) {
         if (!transaction.transactionId) {
           transaction.setTransactionId(TransactionId.generate(accountIdObj));
         }
         if (!transaction.nodeAccountIds || transaction.nodeAccountIds.length === 0) {
-          // Use Testnet Node 0.0.3 by default
-          transaction.setNodeAccountIds([AccountId.fromString("0.0.3")]);
+          // Use multiple Hedera testnet nodes to avoid 400 errors from a single overloaded node
+          transaction.setNodeAccountIds([
+            AccountId.fromString("0.0.3"),
+            AccountId.fromString("0.0.4"),
+            AccountId.fromString("0.0.5"),
+          ]);
         }
+        // Ensure a max fee is always set to prevent INSUFFICIENT_TX_FEE errors
+        transaction.setMaxTransactionFee(Hbar.fromTinybars(2_000_000));
         transaction.freeze();
       }
 
       // ─── Step 2: Use the V3 Signer Implementation ───────────────────────
-      // HashConnect V3 uses the standard Hedera Signer interface.
       // @ts-ignore - version mismatch between SDK 2.81 and 2.41
       const signer = hashconnect.getSigner(accountIdObj as any);
 
       console.log("[WagerWallet] Executing transaction with Signer...");
-      
-      // Execute the transaction using the signer as requested
+
       // @ts-ignore - version mismatch
       const response = await transaction.executeWithSigner(signer);
 
       console.log("[WagerWallet] Transaction response:", response);
-      return { 
-        txId: response.transactionId ? response.transactionId.toString() : null, 
-        status: "SUCCESS" 
+      return {
+        txId: response.transactionId ? response.transactionId.toString() : null,
+        status: "SUCCESS"
       };
     } catch (error: any) {
-      // Explicit strict logging as requested to debug silent hangs
-      console.error("TRANSACTION FAILURE:", error);
-      setError(error.message || "Transaction failed.");
+      const msg: string = error?.message || String(error);
+
+      // Suppress MetaMask noise — WalletConnect probes for EVM wallets internally
+      if (
+        msg.includes("MetaMask") ||
+        msg.includes("extension not found") ||
+        msg.includes("No injected provider")
+      ) {
+        console.debug("[WagerWallet] Suppressed EVM detection noise inside executeTransaction:", msg);
+        // Do NOT return null here — this isn't a real failure.
+        // Fall through: if response was obtained before this, it would have returned already.
+        // If we hit this it means the tx itself failed at a different layer — surface it.
+      }
+
+      console.error("[WagerWallet] TRANSACTION FAILURE details:", {
+        message: msg,
+        name: error?.name,
+        stack: error?.stack?.slice(0, 500),
+      });
+      setError(msg || "Transaction failed.");
       return null;
     }
   };

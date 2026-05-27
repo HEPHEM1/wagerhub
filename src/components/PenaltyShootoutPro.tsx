@@ -28,6 +28,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
   const [selectedZones, setSelectedZones] = useState<number[]>([]);
   const [keeperZones, setKeeperZones] = useState<number[]>([]);
   const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
+  const [txError, setTxError] = useState<string | null>(null);
 
   const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
 
@@ -71,6 +72,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
     }
 
     setIsProcessing(true);
+    setTxError(null);
     setGameState("kicking");
 
     try {
@@ -135,13 +137,15 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         });
       }
       
-      refreshBalances();
+      [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
     } catch (err: any) {
+      const msg = err?.message || "Transaction failed. Check your wallet.";
       console.error("[PenaltyShootoutPro] Error:", err);
+      // Always reset to setup so the player can try again
       setGameState("setup");
       setSelectedZones([]);
       setKeeperZones([]);
-      alert(err.message || "Something went wrong.");
+      setTxError(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -227,6 +231,11 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
               </button>
               {selectedZones.length < 2 && gameState === "setup" && (
                 <p className="text-[9px] text-center text-wager-cyan uppercase font-bold mt-3 animate-pulse">Select at least 2 target zones</p>
+              )}
+              {txError && (
+                <div className="mt-3 p-3 bg-red-950/60 border border-red-500/40 rounded-xl">
+                  <p className="text-[10px] text-red-400 font-mono text-center leading-snug">{txError}</p>
+                </div>
               )}
             </div>
           </div>
