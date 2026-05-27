@@ -293,9 +293,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // which causes executeWithSigner to hang without throwing. The race
       // ensures the UI never freezes longer than 45 seconds.
       const TIMEOUT_MS = 45_000;
-      // @ts-ignore - version mismatch
+      // Cast to any to bypass SDK version mismatch on executeWithSigner
+      const txAsAny = transaction as any;
       const response = await Promise.race([
-        transaction.executeWithSigner(signer) as Promise<any>,
+        txAsAny.executeWithSigner(signer) as Promise<any>,
         new Promise<never>((_, reject) =>
           setTimeout(
             () => reject(new Error(
