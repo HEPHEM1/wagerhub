@@ -26,13 +26,21 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
 
   // Generate House Commitment
   const generateCommitment = async () => {
+    // 1. Strict Guard to prevent Next.js SSR crashes
+    if (typeof window === "undefined" || !window.crypto || !window.crypto.subtle) {
+      console.warn("[RpsZeroTrust] Skipping hash generation during server-side render.");
+      return;
+    }
+
     const moves: Move[] = ["ROCK", "PAPER", "SCISSORS"];
     const randomMove = moves[Math.floor(Math.random() * moves.length)];
     
+    // 2. Client-side only secure random generation
     const saltArray = new Uint8Array(16);
     window.crypto.getRandomValues(saltArray);
     const saltHex = Array.from(saltArray).map(b => b.toString(16).padStart(2, '0')).join('');
     
+    // 3. Web-Safe SHA-256 (No Node.js Buffer dependencies)
     const encoder = new TextEncoder();
     const data = encoder.encode(`${randomMove}-${saltHex}`);
     const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
