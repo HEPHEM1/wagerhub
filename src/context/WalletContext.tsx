@@ -354,9 +354,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         response?.status ??
         response?.statusId; // Sometimes returned as statusId by HC
 
-      if (rawStatus !== undefined && rawStatus !== 22 && rawStatus !== "SUCCESS") {
+      const statusStr = rawStatus?.toString();
+
+      if (rawStatus !== undefined && rawStatus !== 22 && statusStr !== "SUCCESS") {
         throw new Error(
-          `Hedera network rejected the transaction. Status: ${rawStatus}. ` +
+          `Hedera network rejected the transaction. Status: ${statusStr}. ` +
           `Check your wallet balance and ensure you are not submitting duplicates.`
         );
       }
