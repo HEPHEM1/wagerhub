@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Lock, Unlock, Link as LinkIcon, RefreshCw, AlertCircle } from "lucide-react";
 import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
