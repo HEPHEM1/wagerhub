@@ -6,6 +6,7 @@ import { Target, Swords, Dices } from "lucide-react";
 import BlindLootMaster from "./BlindLootMaster";
 import PenaltyShootoutPro from "./PenaltyShootoutPro";
 import MysteryField from "./MysteryField";
+import RpsZeroTrust from "./RpsZeroTrust";
 
 export default function ArcadeFloor() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -35,6 +36,13 @@ export default function ArcadeFloor() {
       description: "Hazard grid. Compound multipliers.",
       icon: <Target size={48} className="text-wager-cyan" />,
       color: "bg-wager-cyan/10 border-wager-cyan/30",
+    },
+    {
+      id: "rps-zero-trust",
+      title: "RPS: ZERO TRUST",
+      description: "Provably fair. Cryptographically secured.",
+      icon: <Swords size={48} className="text-wager-purple" />,
+      color: "bg-purple-500/10 border-purple-500/30",
     },
     {
       id: "degen-dice",
@@ -103,6 +111,9 @@ export default function ArcadeFloor() {
             )}
             {activeGame === "mystery-field" && (
               <MysteryField onClose={() => setActiveGame(null)} />
+            )}
+            {activeGame === "rps-zero-trust" && (
+              <RpsZeroTrust onClose={() => setActiveGame(null)} />
             )}
           </motion.div>
         )}
