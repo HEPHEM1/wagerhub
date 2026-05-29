@@ -130,6 +130,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           });
         }
 
+        // ── Auto-Heal Corrupted WalletConnect Cache ──
+        if (typeof window !== "undefined") {
+          try {
+            const hcData = localStorage.getItem("hashconnectData");
+            if (hcData && hcData.includes("undefined")) {
+              console.warn("[WagerWallet] ⚠️ Detected corrupted WalletConnect cache (projectId=undefined). Initiating self-heal purge...");
+              
+              // Purge Local Storage
+              Object.keys(localStorage).forEach(key => {
+                if (key.toLowerCase().includes("walletconnect") || key.toLowerCase().includes("hashconnect")) {
+                  localStorage.removeItem(key);
+                }
+              });
+              
+              // Purge IndexedDB (where WalletConnect v2 actually stores sessions)
+              if (window.indexedDB) {
+                window.indexedDB.deleteDatabase("walletconnect-v2");
+                console.log("[WagerWallet] IndexedDB 'walletconnect-v2' purged.");
+              }
+
+              // Give the browser a tick to clear before initializing
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          } catch (e) {
+            console.error("[WagerWallet] Self-heal error:", e);
+          }
+        }
+
         await hashconnect.init();
 
         // Check if there is an existing pairing
