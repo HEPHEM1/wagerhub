@@ -7,6 +7,7 @@ import BlindLootMaster from "./BlindLootMaster";
 import PenaltyShootoutPro from "./PenaltyShootoutPro";
 import MysteryField from "./MysteryField";
 import RpsZeroTrust from "./RpsZeroTrust";
+import GravityDrop from "./GravityDrop";
 
 export default function ArcadeFloor() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -43,6 +44,13 @@ export default function ArcadeFloor() {
       description: "Provably fair. Cryptographically secured.",
       icon: <Swords size={48} className="text-wager-purple" />,
       color: "bg-purple-500/10 border-purple-500/30",
+    },
+    {
+      id: "gravity-drop",
+      title: "GRAVITY DROP",
+      description: "Drop the ball. Defy the odds.",
+      icon: <Target size={48} className="text-orange-500" />,
+      color: "bg-orange-500/10 border-orange-500/30",
     },
     {
       id: "degen-dice",
@@ -114,6 +122,9 @@ export default function ArcadeFloor() {
             )}
             {activeGame === "rps-zero-trust" && (
               <RpsZeroTrust onClose={() => setActiveGame(null)} />
+            )}
+            {activeGame === "gravity-drop" && (
+              <GravityDrop onClose={() => setActiveGame(null)} />
             )}
           </motion.div>
         )}
