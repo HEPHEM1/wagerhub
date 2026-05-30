@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { HashConnect, HashConnectConnectionState, SessionData } from "hashconnect";
 import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
@@ -104,6 +104,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [wagerCredits, setWagerCredits] = useState<number>(0);
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
+
+  // Global strict lock to prevent WalletConnect double-execution race conditions
+  const isExecutingRef = useRef(false);
 
   // Initialize HashConnect
   useEffect(() => {
@@ -291,6 +294,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
+    // ── Global Execution Lock ──
+    // Prevents double-clicks from queuing phantom transactions that hang
+    // WalletConnect and trigger the 60s timeout.
+    if (isExecutingRef.current) {
+      console.warn("[WagerWallet] Blocked duplicate execution attempt.");
+      return null; 
+    }
+
+    isExecutingRef.current = true;
+
     try {
       const accountIdObj = AccountId.fromString(accountId);
 
@@ -396,6 +409,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       });
       setError(msg || "Transaction failed.");
       return null;
+    } finally {
+      // Always release the strict lock
+      isExecutingRef.current = false;
     }
   };
 
