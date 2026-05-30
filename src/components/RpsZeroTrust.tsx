@@ -305,11 +305,11 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
                           </div>
                         ) : (
                           <>
-                            {/* USER PROMPT ASSET REPLACEMENT: 
-                                Replace this text span with an <img> tag when assets are ready 
-                                e.g., <img src={`/${id.toLowerCase()}.png`} alt={label} className="w-24 h-24 object-contain drop-shadow-2xl" /> 
-                            */}
-                            <span className="text-6xl drop-shadow-2xl">{emoji}</span>
+                            {id === "ROCK" ? (
+                              <img src="/rock.png" alt="ROCK" className="w-16 h-16 object-contain drop-shadow-2xl" />
+                            ) : (
+                              <span className="text-6xl drop-shadow-2xl">{emoji}</span>
+                            )}
                             <span className="text-sm font-black text-white/70 tracking-widest">{label}</span>
                           </>
                         )}
@@ -354,7 +354,11 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
                   <div className="flex flex-col items-center gap-4">
                     <span className="text-xs font-bold text-zinc-500 tracking-widest uppercase">YOU</span>
                     <div className={`w-32 h-32 rounded-2xl flex items-center justify-center text-7xl bg-black/50 border border-white/10 ${gameResult === 'win' ? 'shadow-[0_0_40px_rgba(74,222,128,0.5)] border-green-500/50' : ''}`}>
-                      {movesConfig.find(m => m.id === playerMove)?.emoji}
+                      {playerMove === "ROCK" ? (
+                        <img src="/rock.png" alt="ROCK" className="w-20 h-20 object-contain drop-shadow-2xl" />
+                      ) : (
+                        movesConfig.find(m => m.id === playerMove)?.emoji
+                      )}
                     </div>
                   </div>
                   
@@ -363,7 +367,11 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
                   <div className="flex flex-col items-center gap-4">
                     <span className="text-xs font-bold text-zinc-500 tracking-widest uppercase">HOUSE</span>
                     <div className={`w-32 h-32 rounded-2xl flex items-center justify-center text-7xl bg-black/50 border border-white/10 ${gameResult === 'loss' ? 'shadow-[0_0_40px_rgba(239,68,68,0.5)] border-red-500/50' : ''}`}>
-                      {movesConfig.find(m => m.id === houseCommitment?.move)?.emoji}
+                      {houseCommitment?.move === "ROCK" ? (
+                        <img src="/rock.png" alt="ROCK" className="w-20 h-20 object-contain drop-shadow-2xl" />
+                      ) : (
+                        movesConfig.find(m => m.id === houseCommitment?.move)?.emoji
+                      )}
                     </div>
                   </div>
                 </div>
