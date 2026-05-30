@@ -44,7 +44,7 @@ export default function ArcadeFloor() {
       description: "Provably fair. Cryptographically secured.",
       icon: <Swords size={48} className="text-wager-purple" />,
       color: "bg-purple-500/10 border-purple-500/30",
-      backgroundImage: "bg-[url('/rps.jpg')]",
+      backgroundImage: "bg-[url('/rps.png')]",
       overlayClass: "from-black/95 via-black/50 to-transparent",
     },
     {

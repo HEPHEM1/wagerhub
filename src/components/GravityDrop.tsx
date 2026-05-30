@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Play, Link as LinkIcon, AlertCircle, RefreshCw, Layers, ShieldAlert } from "lucide-react";
 import { TransferTransaction } from "@hashgraph/sdk";
@@ -20,6 +20,7 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
   const [risk, setRisk] = useState<Risk>("Medium");
   
   const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false); // Prevents rapid double-click race conditions
   const [isDropping, setIsDropping] = useState(false);
   const [txError, setTxError] = useState<string | null>(null);
   
@@ -83,7 +84,7 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
   }, [rows, risk]);
 
   const dropBall = async () => {
-    if (!wager || parseFloat(wager) < 50 || isProcessing || isDropping) return;
+    if (!wager || parseFloat(wager) < 50 || isProcessingRef.current || isDropping) return;
     if (!isConnected || !accountId) {
       connect();
       return;
@@ -94,11 +95,14 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    isProcessingRef.current = true;
     setIsProcessing(true);
     setTxError(null);
     setGameResult(null);
     setBallPath(null);
     setFinalBucketIndex(null);
+
+    let txSucceeded = false;
 
     try {
       const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
@@ -111,7 +115,9 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       if (!res) throw new Error("Transaction rejected");
 
       // Transaction Succeeded! Start Drop Animation.
+      txSucceeded = true;
       setIsProcessing(false);
+      isProcessingRef.current = false;
       setIsDropping(true);
 
       // Generate Deterministic Path
@@ -146,7 +152,11 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
     } catch (err: any) {
       console.error("[GravityDrop] Error:", err);
       setTxError(err?.message || "Transaction failed.");
-      setIsProcessing(false);
+    } finally {
+      if (!txSucceeded) {
+        setIsProcessing(false);
+        isProcessingRef.current = false;
+      }
     }
   };
 
