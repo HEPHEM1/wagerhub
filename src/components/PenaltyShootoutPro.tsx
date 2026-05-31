@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { XCircle, Coins, Loader2, Footprints, Target, Info } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 import PenaltyPhysicsCanvas, { ShotScenario } from "./PenaltyPhysicsCanvas";
+import IdleKeeperCanvas from "./IdleKeeperCanvas";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
 const WAGER_TOKEN_ID = TokenId.fromString((process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim());
@@ -331,10 +332,10 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
             <div className="absolute -bottom-10 -right-[10px] w-8 h-20 bg-zinc-200 rounded-b-lg" />
           </div>
 
-          {/* Goal Net background */}
-          <div className="absolute inset-0 bg-white/5 overflow-hidden rounded-t-xl" />
+          {/* Goal Net background + always-visible idle keeper */}
+          <IdleKeeperCanvas visible={gameState === "setup" || gameState === "kicking"} />
 
-          {/* matter-js Physics Canvas */}
+          {/* matter-js Physics Canvas — mounts when transaction resolves */}
           {gameState === "animating" && shotScenario && (
             <PenaltyPhysicsCanvas
               scenario={shotScenario}
