@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { HashConnect, HashConnectConnectionState, SessionData } from "hashconnect";
 import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
@@ -105,9 +105,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
 
-  // Global strict lock to prevent WalletConnect double-execution race conditions
-  const isExecutingRef = useRef(false);
-
   // Initialize HashConnect
   useEffect(() => {
     let isMounted = true;
@@ -133,31 +130,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        // ── Auto-Heal Corrupted WalletConnect Cache ──
+        // ── Aggressive WalletConnect cache purge on every init ──────────────
+        // Stale IndexedDB sessions from previous deployments cause relay sockets
+        // to connect with an old/undefined projectId, resulting in 400 errors
+        // and hung sendTransaction calls. Purge unconditionally every init.
         if (typeof window !== "undefined") {
           try {
-            const hcData = localStorage.getItem("hashconnectData");
-            if (hcData && hcData.includes("undefined")) {
-              console.warn("[WagerWallet] ⚠️ Detected corrupted WalletConnect cache (projectId=undefined). Initiating self-heal purge...");
-              
-              // Purge Local Storage
-              Object.keys(localStorage).forEach(key => {
-                if (key.toLowerCase().includes("walletconnect") || key.toLowerCase().includes("hashconnect")) {
-                  localStorage.removeItem(key);
-                }
-              });
-              
-              // Purge IndexedDB (where WalletConnect v2 actually stores sessions)
-              if (window.indexedDB) {
-                window.indexedDB.deleteDatabase("walletconnect-v2");
-                console.log("[WagerWallet] IndexedDB 'walletconnect-v2' purged.");
-              }
+            // 1. Purge localStorage keys
+            const keysToRemove = Object.keys(localStorage).filter(k =>
+              k.toLowerCase().includes("walletconnect") ||
+              k.toLowerCase().includes("hashconnect") ||
+              k.toLowerCase().includes("wc@")
+            );
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+            if (keysToRemove.length > 0) {
+              console.log(`[WagerWallet] Purged ${keysToRemove.length} stale localStorage keys.`);
+            }
 
-              // Give the browser a tick to clear before initializing
-              await new Promise(resolve => setTimeout(resolve, 500));
+            // 2. Purge all known WalletConnect IndexedDB databases
+            const dbsToPurge = ["walletconnect-v2", "WALLET_CONNECT_V2_INDEXED_DB", "wc@2"];
+            if (window.indexedDB) {
+              dbsToPurge.forEach(dbName => {
+                const req = window.indexedDB.deleteDatabase(dbName);
+                req.onsuccess = () => console.log(`[WagerWallet] Purged IndexedDB: ${dbName}`);
+                req.onerror   = () => {}; // silent if db didn't exist
+              });
+              // Brief pause for IDB ops to settle before hashconnect.init()
+              await new Promise(resolve => setTimeout(resolve, 600));
             }
           } catch (e) {
-            console.error("[WagerWallet] Self-heal error:", e);
+            console.warn("[WagerWallet] Cache purge warning:", e);
           }
         }
 
@@ -294,16 +296,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    // ── Global Execution Lock ──
-    // Prevents double-clicks from queuing phantom transactions that hang
-    // WalletConnect and trigger the 60s timeout.
-    if (isExecutingRef.current) {
-      console.warn("[WagerWallet] Blocked duplicate execution attempt.");
-      return null; 
-    }
-
-    isExecutingRef.current = true;
-
     try {
       const accountIdObj = AccountId.fromString(accountId);
 
@@ -330,13 +322,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Instead of using the Signer wrapper which can hang or race, we use
       // the native HashConnect v3 sendTransaction method directly.
-      const TIMEOUT_MS = 60_000;
+      const TIMEOUT_MS = 45_000; // 45s — fail fast so user can retry
       let txSettled = false;
+      let timedOut = false;
 
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
           if (!txSettled) {
-            reject(new Error("Transaction timed out. Please check your wallet or reconnect."));
+            timedOut = true;
+            reject(new Error(
+              "TX_TIMEOUT: Wallet did not respond in time. " +
+              "Please open HashPack and approve the pending request, " +
+              "then try again. If stuck, disconnect and reconnect your wallet."
+            ));
           }
         }, TIMEOUT_MS);
       });
@@ -409,9 +407,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       });
       setError(msg || "Transaction failed.");
       return null;
-    } finally {
-      // Always release the strict lock
-      isExecutingRef.current = false;
     }
   };
 
