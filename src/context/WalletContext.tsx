@@ -111,10 +111,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const setupHashConnect = async () => {
       try {
-        console.log("CRITICAL AUDIT - PROJECT ID: Hardcoded 37016fd71f4d35906f67ec93aa5225ec (env var not used)");
-        console.log("CRITICAL AUDIT - METADATA URL:", typeof window !== "undefined" ? window.location.origin : "SSR");
-
-        // ── Silence MetaMask/EVM wallet-detection noise from WalletConnect ──
+        // ── Silence MetaMask/EVM wallet-detection noise ────────────────────
         if (typeof window !== "undefined") {
           window.addEventListener("unhandledrejection", (event) => {
             const msg = event?.reason?.message || "";
@@ -125,57 +122,53 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               msg.includes("No injected provider")
             ) {
               event.preventDefault();
-              console.debug("[WagerWallet] Suppressed EVM wallet-detection noise:", msg);
             }
           });
         }
 
-        // ── Aggressive WalletConnect cache purge on every init ──────────────
-        // Stale IndexedDB sessions from previous deployments cause relay sockets
-        // to connect with an old/undefined projectId, resulting in 400 errors
-        // and hung sendTransaction calls. Purge unconditionally every init.
+        // ── Targeted purge: ONLY when genuine corruption is detected ───────
+        // Wiping IndexedDB on every init destroys the WalletConnect SignClient
+        // keypair needed to generate a pairing URI → "Pairing string: undefined"
+        // We only purge when we can confirm a bad projectId ghost session.
         if (typeof window !== "undefined") {
           try {
-            // 1. Purge localStorage keys
-            const keysToRemove = Object.keys(localStorage).filter(k =>
-              k.toLowerCase().includes("walletconnect") ||
-              k.toLowerCase().includes("hashconnect") ||
-              k.toLowerCase().includes("wc@")
+            const corruptionSignals = [
+              localStorage.getItem("hashconnectData"),
+              localStorage.getItem("wc@2:client:0.3"),
+            ];
+            const isCorrupted = corruptionSignals.some(
+              (v) => v && (v.includes('"projectId":""') || v.includes('"projectId":null') || v.includes("undefined"))
             );
-            keysToRemove.forEach(k => localStorage.removeItem(k));
-            if (keysToRemove.length > 0) {
-              console.log(`[WagerWallet] Purged ${keysToRemove.length} stale localStorage keys.`);
+            if (isCorrupted) {
+              console.warn("[WagerWallet] Corrupted session detected — purging stale WC cache.");
+              Object.keys(localStorage)
+                .filter(k => k.toLowerCase().includes("walletconnect") || k.toLowerCase().includes("hashconnect") || k.startsWith("wc@"))
+                .forEach(k => localStorage.removeItem(k));
+              if (window.indexedDB) {
+                ["walletconnect-v2", "WALLET_CONNECT_V2_INDEXED_DB", "wc@2"].forEach(db => {
+                  window.indexedDB.deleteDatabase(db);
+                });
+                await new Promise(r => setTimeout(r, 400));
+              }
             }
-
-            // 2. Purge all known WalletConnect IndexedDB databases
-            const dbsToPurge = ["walletconnect-v2", "WALLET_CONNECT_V2_INDEXED_DB", "wc@2"];
-            if (window.indexedDB) {
-              dbsToPurge.forEach(dbName => {
-                const req = window.indexedDB.deleteDatabase(dbName);
-                req.onsuccess = () => console.log(`[WagerWallet] Purged IndexedDB: ${dbName}`);
-                req.onerror   = () => {}; // silent if db didn't exist
-              });
-              // Brief pause for IDB ops to settle before hashconnect.init()
-              await new Promise(resolve => setTimeout(resolve, 600));
-            }
-          } catch (e) {
-            console.warn("[WagerWallet] Cache purge warning:", e);
-          }
+          } catch (_) {}
         }
 
+        // ── Initialize with fully populated metadata ────────────────────────
+        // HashConnect v3 reads the metadata + projectId from the singleton
+        // constructor arguments. hashconnect.init() re-uses those stored values.
+        // No arguments needed here — they were locked in at module load time.
         await hashconnect.init();
 
-        // Check if there is an existing pairing
-        const savedData = hashconnect.connectedAccountIds;
-        if (savedData && savedData.length > 0) {
-          if (isMounted) {
-            setAccountId(savedData[0].toString());
-            setIsConnected(true);
-            setError(null); // Clear any cached errors
-          }
+        // Restore session if a prior pairing exists
+        const saved = hashconnect.connectedAccountIds;
+        if (saved && saved.length > 0 && isMounted) {
+          setAccountId(saved[0].toString());
+          setIsConnected(true);
+          setError(null);
         }
       } catch (err) {
-        console.error("HashConnect init error:", err);
+        console.error("[WagerWallet] HashConnect init error:", err);
       } finally {
         if (isMounted) setIsConnecting(false);
       }
