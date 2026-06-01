@@ -25,6 +25,7 @@ export function useWagerWallet() {
     wagerCredits,
     balances,
     error,
+    isInitialized,
     connect,
     disconnect,
     addWagerCredits,
@@ -80,6 +81,9 @@ export function useWagerWallet() {
 
     /** Live balances fetched from the Hedera testnet Mirror Node. */
     balances,
+
+    /** Whether the wallet provider has fully finished its background initialization */
+    isInitialized,
 
     /** Latest error message, if any. Cleared on next successful action. */
     error,

@@ -9,6 +9,7 @@ export default function Header() {
   const {
     isConnected,
     isConnecting,
+    isInitialized,
     accountId,
     shortAccountId,
     wagerCredits,
@@ -109,10 +110,10 @@ export default function Header() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={connect}
-            disabled={isConnecting}
+            disabled={isConnecting || !isInitialized}
             className="flex items-center gap-2 bg-wager-charcoal hover:bg-wager-charcoal/80 text-white text-xs font-bold px-5 py-2.5 rounded-full border border-wager-cyan/30 transition-colors shadow-[0_0_15px_rgba(0,255,255,0.1)] disabled:opacity-60 disabled:cursor-wait"
           >
-            {isConnecting ? (
+            {isConnecting || !isInitialized ? (
               <>
                 <motion.span
                   animate={{ rotate: 360 }}
@@ -121,7 +122,7 @@ export default function Header() {
                 >
                   <RefreshCw size={14} className="text-wager-cyan" />
                 </motion.span>
-                <span>CONNECTING…</span>
+                <span>{!isInitialized ? "INITIALIZING…" : "CONNECTING…"}</span>
               </>
             ) : (
               <>

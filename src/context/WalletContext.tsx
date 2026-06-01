@@ -37,6 +37,7 @@ export interface WalletContextValue {
   wagerCredits: number;
   balances: WalletBalances;
   error: string | null;
+  isInitialized: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   addWagerCredits: (amount: number) => void;
@@ -55,6 +56,7 @@ const WalletContext = createContext<WalletContextValue>({
   wagerCredits: 0,
   balances: defaultBalances,
   error: null,
+  isInitialized: false,
   connect: async () => {},
   disconnect: async () => {},
   addWagerCredits: () => {},
@@ -299,10 +301,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const connect = async () => {
     try {
       if (!isInitialized) {
-        throw new Error("WalletConnect Relay is disconnected or blocked. Please check your WalletConnect Cloud dashboard whitelist for wagerhub.vercel.app, or try disabling your adblocker.");
+        throw new Error("Wallet provider is still initializing. Please wait a moment.");
       }
       setError(null);
-      await hashconnect.openPairingModal();
+      // Introduce a Buffer Delay for the Modal
+      setTimeout(() => hashconnect.openPairingModal(), 500);
     } catch (err: any) {
       setError(err.message || "Failed to connect wallet.");
     }
@@ -443,6 +446,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         wagerCredits,
         balances,
         error,
+        isInitialized,
         connect,
         disconnect,
         addWagerCredits,
