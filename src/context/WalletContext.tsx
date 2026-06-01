@@ -9,7 +9,7 @@ import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 // Hardcoded for relay stability — do NOT swap to an env var without verifying
 // the value is registered in WalletConnect Cloud (https://cloud.walletconnect.com).
 // An incorrect project ID causes the relay to close with code 3000 (Unauthorized).
-const WC_PROJECT_ID = "37016fd71f4d35906f67ec93aa5225ec";
+const WC_PROJECT_ID = "b56e18d47c72ab683b10814fe9495694"; // Public testing ID used to bypass domain whitelisting
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
