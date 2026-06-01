@@ -158,12 +158,32 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // Temporarily hide window.ethereum so WalletConnect does not attempt EVM auto-connects
+        let originalEthereum: any = undefined;
+        if (typeof window !== "undefined") {
+          originalEthereum = (window as any).ethereum;
+          try {
+            // Delete it temporarily if it exists to blind WalletConnect's scanner
+            if (originalEthereum) delete (window as any).ethereum;
+          } catch(e) {}
+        }
+
         // Wrap init in a timeout to prevent WalletConnect hanging issues (like EVM/MetaMask provider search)
         const initPromise = hashconnect.init();
         const timeoutPromise = new Promise<void>((_, reject) => 
-          setTimeout(() => reject(new Error("HashConnect init timeout")), 5000)
+          setTimeout(() => reject(new Error("HashConnect init timeout")), 15000)
         );
-        await Promise.race([initPromise, timeoutPromise]);
+        
+        try {
+          await Promise.race([initPromise, timeoutPromise]);
+        } finally {
+          // Restore window.ethereum after initialization
+          if (typeof window !== "undefined" && originalEthereum) {
+            try {
+              (window as any).ethereum = originalEthereum;
+            } catch(e) {}
+          }
+        }
 
         // Check if there is an existing pairing
         const savedData = hashconnect.connectedAccountIds;
