@@ -14,34 +14,53 @@ export const HCSLiveFeed = () => {
   const topicId = process.env.NEXT_PUBLIC_HCS_TOPIC_ID || "0.0.5284340";
 
   useEffect(() => {
+    let isMounted = true;
+    let timerId: NodeJS.Timeout;
+
     const fetchMessages = async () => {
+      if (!isMounted) return;
       if (!topicId || topicId === "undefined" || topicId.includes("NEXT_PUBLIC")) return;
       
       try {
         const res = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/topics/${topicId}/messages?limit=5&order=desc`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (res.status === 400 || res.status === 404) {
+            console.error(`[HCSLiveFeed] Fatal error: Topic ${topicId} is invalid or not found (HTTP ${res.status}). Halting polling.`);
+            return; // Stop polling completely
+          }
+          throw new Error(`HTTP error ${res.status}`);
+        }
         
         const data = await res.json();
-        if (!data.messages) return;
+        if (data.messages) {
+          const decodedMessages = data.messages.map((m: any) => {
+            try {
+              return atob(m.message);
+            } catch {
+              return "Binary message received";
+            }
+          });
+          setMessages(decodedMessages);
+        }
 
-        const decodedMessages = data.messages.map((m: any) => {
-          try {
-            // Hedera messages are base64 encoded
-            return atob(m.message);
-          } catch {
-            return "Binary message received";
-          }
-        });
-        
-        setMessages(decodedMessages);
+        // Continue polling normally
+        if (isMounted) {
+          timerId = setTimeout(fetchMessages, 5000);
+        }
       } catch (err) {
-        // Silently fail to keep console clean
+        // Implement 15-second backoff on generic network failures
+        if (isMounted) {
+          timerId = setTimeout(fetchMessages, 15000);
+        }
       }
     };
 
     fetchMessages();
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      isMounted = false;
+      if (timerId) clearTimeout(timerId);
+    };
   }, [topicId]);
 
   return (

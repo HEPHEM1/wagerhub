@@ -111,7 +111,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const setupHashConnect = async () => {
       try {
-        // ── Silence MetaMask/EVM wallet-detection noise ────────────────────
+        console.log("CRITICAL AUDIT - PROJECT ID: Hardcoded 37016fd71f4d35906f67ec93aa5225ec (env var not used)");
+        console.log("CRITICAL AUDIT - METADATA URL:", typeof window !== "undefined" ? window.location.origin : "SSR");
+
+        // ── Silence MetaMask/EVM wallet-detection noise from WalletConnect ──
         if (typeof window !== "undefined") {
           window.addEventListener("unhandledrejection", (event) => {
             const msg = event?.reason?.message || "";
@@ -122,53 +125,57 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               msg.includes("No injected provider")
             ) {
               event.preventDefault();
+              console.debug("[WagerWallet] Suppressed EVM wallet-detection noise:", msg);
             }
           });
         }
 
-        // ── Targeted purge: ONLY when genuine corruption is detected ───────
-        // Wiping IndexedDB on every init destroys the WalletConnect SignClient
-        // keypair needed to generate a pairing URI → "Pairing string: undefined"
-        // We only purge when we can confirm a bad projectId ghost session.
+        // ── Auto-Heal Corrupted WalletConnect Cache ──
         if (typeof window !== "undefined") {
           try {
-            const corruptionSignals = [
-              localStorage.getItem("hashconnectData"),
-              localStorage.getItem("wc@2:client:0.3"),
-            ];
-            const isCorrupted = corruptionSignals.some(
-              (v) => v && (v.includes('"projectId":""') || v.includes('"projectId":null') || v.includes("undefined"))
-            );
-            if (isCorrupted) {
-              console.warn("[WagerWallet] Corrupted session detected — purging stale WC cache.");
-              Object.keys(localStorage)
-                .filter(k => k.toLowerCase().includes("walletconnect") || k.toLowerCase().includes("hashconnect") || k.startsWith("wc@"))
-                .forEach(k => localStorage.removeItem(k));
+            const hcData = localStorage.getItem("hashconnectData");
+            if (hcData && hcData.includes("undefined")) {
+              console.warn("[WagerWallet] ⚠️ Detected corrupted WalletConnect cache (projectId=undefined). Initiating self-heal purge...");
+              
+              // Purge Local Storage
+              Object.keys(localStorage).forEach(key => {
+                if (key.toLowerCase().includes("walletconnect") || key.toLowerCase().includes("hashconnect")) {
+                  localStorage.removeItem(key);
+                }
+              });
+              
+              // Purge IndexedDB (where WalletConnect v2 actually stores sessions)
               if (window.indexedDB) {
-                ["walletconnect-v2", "WALLET_CONNECT_V2_INDEXED_DB", "wc@2"].forEach(db => {
-                  window.indexedDB.deleteDatabase(db);
-                });
-                await new Promise(r => setTimeout(r, 400));
+                window.indexedDB.deleteDatabase("walletconnect-v2");
+                console.log("[WagerWallet] IndexedDB 'walletconnect-v2' purged.");
               }
+
+              // Give the browser a tick to clear before initializing
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
-          } catch (_) {}
+          } catch (e) {
+            console.error("[WagerWallet] Self-heal error:", e);
+          }
         }
 
-        // ── Initialize with fully populated metadata ────────────────────────
-        // HashConnect v3 reads the metadata + projectId from the singleton
-        // constructor arguments. hashconnect.init() re-uses those stored values.
-        // No arguments needed here — they were locked in at module load time.
-        await hashconnect.init();
+        // Wrap init in a timeout to prevent WalletConnect hanging issues (like EVM/MetaMask provider search)
+        const initPromise = hashconnect.init();
+        const timeoutPromise = new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error("HashConnect init timeout")), 5000)
+        );
+        await Promise.race([initPromise, timeoutPromise]);
 
-        // Restore session if a prior pairing exists
-        const saved = hashconnect.connectedAccountIds;
-        if (saved && saved.length > 0 && isMounted) {
-          setAccountId(saved[0].toString());
-          setIsConnected(true);
-          setError(null);
+        // Check if there is an existing pairing
+        const savedData = hashconnect.connectedAccountIds;
+        if (savedData && savedData.length > 0) {
+          if (isMounted) {
+            setAccountId(savedData[0].toString());
+            setIsConnected(true);
+            setError(null); // Clear any cached errors
+          }
         }
       } catch (err) {
-        console.error("[WagerWallet] HashConnect init error:", err);
+        console.error("HashConnect init error:", err);
       } finally {
         if (isMounted) setIsConnecting(false);
       }
@@ -315,19 +322,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Instead of using the Signer wrapper which can hang or race, we use
       // the native HashConnect v3 sendTransaction method directly.
-      const TIMEOUT_MS = 45_000; // 45s — fail fast so user can retry
+      const TIMEOUT_MS = 60_000;
       let txSettled = false;
-      let timedOut = false;
 
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
           if (!txSettled) {
-            timedOut = true;
-            reject(new Error(
-              "TX_TIMEOUT: Wallet did not respond in time. " +
-              "Please open HashPack and approve the pending request, " +
-              "then try again. If stuck, disconnect and reconnect your wallet."
-            ));
+            reject(new Error("Transaction timed out. Please check your wallet or reconnect."));
           }
         }, TIMEOUT_MS);
       });
