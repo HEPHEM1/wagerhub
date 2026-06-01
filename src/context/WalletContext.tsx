@@ -104,6 +104,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [wagerCredits, setWagerCredits] = useState<number>(0);
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Initialize HashConnect
   useEffect(() => {
@@ -168,14 +169,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           } catch(e) {}
         }
 
-        // Wrap init in a timeout to prevent WalletConnect hanging issues (like EVM/MetaMask provider search)
+        // Wrap init in a timeout to prevent WalletConnect hanging issues
         const initPromise = hashconnect.init();
         const timeoutPromise = new Promise<void>((_, reject) => 
-          setTimeout(() => reject(new Error("HashConnect init timeout")), 15000)
+          setTimeout(() => reject(new Error("HashConnect init timeout: WalletConnect Relay failed to connect. This usually means the domain 'wagerhub.vercel.app' is NOT whitelisted in your WalletConnect Cloud Dashboard for this Project ID.")), 30000)
         );
+        
         
         try {
           await Promise.race([initPromise, timeoutPromise]);
+          if (isMounted) setIsInitialized(true);
         } finally {
           // Restore window.ethereum after initialization
           if (typeof window !== "undefined" && originalEthereum) {
@@ -194,8 +197,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setError(null); // Clear any cached errors
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("HashConnect init error:", err);
+        if (isMounted && err.message.includes("Dashboard")) {
+          setError(err.message);
+        }
       } finally {
         if (isMounted) setIsConnecting(false);
       }
@@ -292,6 +298,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Connect & Disconnect
   const connect = async () => {
     try {
+      if (!isInitialized) {
+        throw new Error("WalletConnect Relay is disconnected or blocked. Please check your WalletConnect Cloud dashboard whitelist for wagerhub.vercel.app, or try disabling your adblocker.");
+      }
       setError(null);
       await hashconnect.openPairingModal();
     } catch (err: any) {
