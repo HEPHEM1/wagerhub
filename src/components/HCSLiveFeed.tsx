@@ -11,7 +11,7 @@ interface HCSMessage {
 
 export const HCSLiveFeed = () => {
   const [messages, setMessages] = useState<string[]>([]);
-  const topicId = process.env.NEXT_PUBLIC_HCS_TOPIC_ID || "0.0.5284340";
+  const topicId = (process.env.NEXT_PUBLIC_HCS_TOPIC_ID || "0.0.5284340").trim();
 
   useEffect(() => {
     let isMounted = true;
