@@ -288,18 +288,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, accountId]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-
   const connect = async () => {
-    // connect() does NOT call hashconnect.init() again — init runs once at
-    // startup via the guarded useEffect. Calling it again here causes the
-    // "WalletConnect Core is already initialized" error. openPairingModal()
-    // already handles generating a fresh pairing string internally.
     try {
       setError(null);
       setIsConnecting(true);
-      // Small buffer so HashPack extension has time to detect the new session
+
+      // ── Why generatePairingString() is called first ────────────────────────
+      // openPairingModal() reads this._pairingString at its very first line.
+      // If it is undefined it immediately logs "hashconnect - URI Missing" and
+      // exits — the WalletConnect modal never opens. _pairingString is only
+      // populated by the private generatePairingString() method which calls
+      // this._signClient.connect() to get a fresh WalletConnect proposal URI.
+      // We call it explicitly via a type-cast before openPairingModal() so the
+      // URI is always ready.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (hashconnect as any).generatePairingString();
+
+      // Small buffer so HashPack extension can detect the new WalletConnect session
       await new Promise((resolve) => setTimeout(resolve, 300));
+
       await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
