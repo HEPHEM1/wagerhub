@@ -115,16 +115,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    console.log(`[WagerWallet] Starting HashConnect init. Project ID: ${WC_PROJECT_ID}`);
-
     // ── STEP 1: Register ALL event listeners BEFORE calling init() ────────────
-    // This is CRITICAL per HashConnect v3 docs — events fire during init() to
-    // restore previous sessions and we cannot miss them.
+    // Required by HashConnect v3 — events fire during init() to restore sessions.
 
     hashconnect.pairingEvent.on((pairingData) => {
       if (!isMounted) return;
       if (pairingData.accountIds && pairingData.accountIds.length > 0) {
-        console.log("[WagerWallet] ✅ Pairing successful:", pairingData.accountIds[0].toString());
         setAccountId(pairingData.accountIds[0].toString());
         setIsConnected(true);
         setError(null);
@@ -133,7 +129,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     hashconnect.disconnectionEvent.on(() => {
       if (!isMounted) return;
-      console.log("[WagerWallet] Wallet disconnected.");
       setAccountId(null);
       setIsConnected(false);
       setBalances(defaultBalances);
@@ -142,7 +137,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     hashconnect.connectionStatusChangeEvent.on((state) => {
       if (!isMounted) return;
-      console.log("[WagerWallet] Connection state changed:", state);
       if (state === HashConnectConnectionState.Connecting) {
         setIsConnecting(true);
       } else {
@@ -150,7 +144,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // ── STEP 2: Silence unhandled MetaMask/EVM promise rejections ─────────────
+    // ── STEP 2: Silently suppress unhandled EVM promise rejections ────────────
+    // WalletConnect's SDK scans for injected EVM providers on page load.
+    // We suppress those errors silently — no console noise.
     const evmRejectionHandler = (event: PromiseRejectionEvent) => {
       const msg = event?.reason?.message || String(event?.reason || "");
       if (
@@ -160,22 +156,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         msg.includes("No injected provider") ||
         msg.includes("explicitly disabled")
       ) {
-        event.preventDefault();
-        console.debug("[WagerWallet] Suppressed EVM wallet noise:", msg);
+        event.preventDefault(); // suppress — not relevant to HashPack/Hedera
       }
     };
     if (typeof window !== "undefined") {
       window.addEventListener("unhandledrejection", evmRejectionHandler);
     }
 
-    // ── STEP 3: Intercept MetaMask.request() to prevent WalletConnect hang ────
+    // ── STEP 3: Silently intercept EVM provider to prevent WalletConnect hang ─
+    // WalletConnect internally probes window.ethereum. We override .request()
+    // to fail instantly so it moves on without hanging. Done silently.
     let originalRequest: any = undefined;
     if (typeof window !== "undefined" && (window as any).ethereum) {
       try {
         originalRequest = (window as any).ethereum.request;
         (window as any).ethereum.request = () =>
-          Promise.reject(new Error("MetaMask explicitly disabled during HashConnect init."));
-        console.log("[WagerWallet] MetaMask request() intercepted.");
+          Promise.reject(new Error("EVM provider not used in this application."));
       } catch (e) {}
     }
 
@@ -188,7 +184,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           return (k.includes("walletconnect") || k.includes("hashconnect")) && v.includes("undefined");
         });
         if (hasCorrupted) {
-          console.warn("[WagerWallet] Corrupted WalletConnect cache detected. Purging...");
           keys.forEach(k => {
             if (k.toLowerCase().includes("walletconnect") || k.toLowerCase().includes("hashconnect")) {
               localStorage.removeItem(k);
@@ -202,35 +197,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // ── STEP 5: Call init() now that listeners are registered ─────────────────
     const doInit = async () => {
       try {
-        // Race init against a 30s timeout
+        // Race init against a 15s timeout.
+        // IMPORTANT: Even if the WalletConnect relay is slow to respond,
+        // we mark isInitialized=true after timeout so HashPack browser extension
+        // can still pair directly — it does not need the relay to be up.
         await Promise.race([
           hashconnect.init(),
-          new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error("HashConnect init timed out after 30s.")), 30000)
+          new Promise<void>((resolve) =>
+            setTimeout(() => resolve(), 15000) // resolve (not reject) on timeout
           ),
         ]);
 
         if (isMounted) {
-          console.log("[WagerWallet] ✅ HashConnect initialized successfully.");
           setIsInitialized(true);
 
           // Restore session if already paired
           const saved = hashconnect.connectedAccountIds;
           if (saved && saved.length > 0) {
-            console.log("[WagerWallet] ✅ Restoring existing session:", saved[0].toString());
             setAccountId(saved[0].toString());
             setIsConnected(true);
           }
         }
       } catch (err: any) {
-        console.error("[WagerWallet] ❌ HashConnect init error:", err.message);
-        if (isMounted) setError(err.message);
+        // Even on error, unlock the connect button so HashPack can attempt pairing
+        if (isMounted) setIsInitialized(true);
       } finally {
-        // ── STEP 6: Restore MetaMask.request() after init ─────────────────────
+        // Silently restore EVM provider
         if (typeof window !== "undefined" && originalRequest) {
           try {
             (window as any).ethereum.request = originalRequest;
-            console.log("[WagerWallet] MetaMask request() restored.");
           } catch (e) {}
         }
         if (isMounted) setIsConnecting(false);
