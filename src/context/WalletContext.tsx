@@ -1,12 +1,23 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+} from "react";
 import { HashConnect, HashConnectConnectionState } from "hashconnect";
 import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "37016fd71f4d35906f67ec93aa5225ec").trim();
+// .trim() guards against accidental trailing spaces entered in the Vercel dashboard.
+const WC_PROJECT_ID = (
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "37016fd71f4d35906f67ec93aa5225ec"
+).trim();
+
 const WAGER_TOKEN_ID = "0.0.8818191";
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
@@ -35,11 +46,13 @@ export interface WalletContextValue {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   addWagerCredits: (amount: number) => void;
-  executeTransaction: (transaction: Transaction) => Promise<{ txId: string | null; status: string | null } | null>;
+  executeTransaction: (
+    transaction: Transaction
+  ) => Promise<{ txId: string | null; status: string | null } | null>;
   refreshBalances: () => Promise<void>;
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
+// ─── Context defaults ─────────────────────────────────────────────────────────
 const defaultBalances: WalletBalances = { hbar: "0.00", wager: "0.00" };
 
 const WalletContext = createContext<WalletContextValue>({
@@ -99,7 +112,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [wagerCredits, setWagerCredits] = useState<number>(0);
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
-  const [hashconnect] = useState(() => new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true));
+
+  // Single HashConnect instance — created once for the lifetime of this provider.
+  // Passing WC_PROJECT_ID explicitly so the relay uses the verified project ID.
+  const [hashconnect] = useState(
+    () => new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, false)
+  );
+
+  // ── Initialization lock ───────────────────────────────────────────────────
+  // React Strict Mode mounts → unmounts → remounts every component in dev.
+  // Without this guard, hashconnect.init() gets called twice concurrently,
+  // producing "WalletConnect Core is already initialized" errors and timeouts.
+  // We use a ref (not state) so it persists across the remount cycle without
+  // triggering a re-render. We intentionally do NOT reset it in the cleanup
+  // function — resetting would just let Strict Mode fire the double-init again.
+  const isInitStarted = useRef(false);
 
   // Load WagerCredits from localStorage on mount
   useEffect(() => {
@@ -107,20 +134,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem("wagerHub_credits");
       if (stored) setWagerCredits(parseInt(stored, 10));
     } catch (e) {
-      console.warn("Could not read wagerHub_credits from localStorage", e);
+      console.warn("[WagerWallet] Could not read wagerHub_credits:", e);
     }
   }, []);
 
-  // ── Initialize HashConnect (correct order: listeners FIRST, then init) ──────
+  // ── Bootstrap HashConnect (listeners FIRST, then init — once only) ────────
   useEffect(() => {
+    // ── INITIALIZATION LOCK ───────────────────────────────────────────────────
+    // Guard against Strict Mode double-fire and any other re-render that
+    // might call this effect again. Once set, init never runs a second time.
+    if (isInitStarted.current) return;
+    isInitStarted.current = true;
+    // ─────────────────────────────────────────────────────────────────────────
+
     let isMounted = true;
 
-    // ── STEP 1: Register ALL event listeners BEFORE calling init() ────────────
-    // Required by HashConnect v3 — events fire during init() to restore sessions.
+    // ── STEP 1: Register ALL event listeners BEFORE init() ───────────────────
+    // HashConnect v3 fires pairingEvent and connectionStatusChangeEvent
+    // DURING init() to restore existing sessions. Registering after init()
+    // means those events are missed permanently.
 
     hashconnect.pairingEvent.on((pairingData) => {
       if (!isMounted) return;
-      if (pairingData.accountIds && pairingData.accountIds.length > 0) {
+      if (pairingData.accountIds?.length > 0) {
         setAccountId(pairingData.accountIds[0].toString());
         setIsConnected(true);
         setError(null);
@@ -137,16 +173,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     hashconnect.connectionStatusChangeEvent.on((state) => {
       if (!isMounted) return;
-      if (state === HashConnectConnectionState.Connecting) {
-        setIsConnecting(true);
-      } else {
-        setIsConnecting(false);
-      }
+      setIsConnecting(state === HashConnectConnectionState.Connecting);
     });
 
-    // ── STEP 2: Silently suppress unhandled EVM promise rejections ────────────
-    // WalletConnect's SDK scans for injected EVM providers on page load.
-    // We suppress those errors silently — no console noise.
+    // ── STEP 2: Silently suppress EVM provider noise ──────────────────────────
+    // WalletConnect's SDK scans for window.ethereum on startup (it's designed
+    // for EVM chains). WagerHub is Hedera-only — we suppress this silently.
     const evmRejectionHandler = (event: PromiseRejectionEvent) => {
       const msg = event?.reason?.message || String(event?.reason || "");
       if (
@@ -154,79 +186,81 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         msg.includes("extension not found") ||
         msg.includes("ethereum") ||
         msg.includes("No injected provider") ||
-        msg.includes("explicitly disabled")
+        msg.includes("EVM provider not used")
       ) {
-        event.preventDefault(); // suppress — not relevant to HashPack/Hedera
+        event.preventDefault();
       }
     };
     if (typeof window !== "undefined") {
       window.addEventListener("unhandledrejection", evmRejectionHandler);
     }
 
-    // ── STEP 3: Silently intercept EVM provider to prevent WalletConnect hang ─
-    // WalletConnect internally probes window.ethereum. We override .request()
-    // to fail instantly so it moves on without hanging. Done silently.
-    let originalRequest: any = undefined;
+    // ── STEP 3: Intercept window.ethereum.request to prevent hang ────────────
+    // WalletConnect probes window.ethereum during init. If MetaMask is installed
+    // it tries to connect, stalling the relay handshake. We override .request()
+    // to reject instantly, then restore it after init completes.
+    let originalEthRequest: any = undefined;
     if (typeof window !== "undefined" && (window as any).ethereum) {
       try {
-        originalRequest = (window as any).ethereum.request;
+        originalEthRequest = (window as any).ethereum.request;
         (window as any).ethereum.request = () =>
           Promise.reject(new Error("EVM provider not used in this application."));
-      } catch (e) {}
+      } catch (_) {}
     }
 
-    // ── STEP 4: Purge corrupted WalletConnect cache if detected ───────────────
+    // ── STEP 4: Purge corrupted WalletConnect cache ───────────────────────────
     if (typeof window !== "undefined") {
       try {
         const keys = Object.keys(localStorage);
-        const hasCorrupted = keys.some(k => {
+        const hasCorrupted = keys.some((k) => {
           const v = localStorage.getItem(k) || "";
-          return (k.includes("walletconnect") || k.includes("hashconnect")) && v.includes("undefined");
+          return (
+            (k.includes("walletconnect") || k.includes("hashconnect")) &&
+            v.includes("undefined")
+          );
         });
         if (hasCorrupted) {
-          keys.forEach(k => {
-            if (k.toLowerCase().includes("walletconnect") || k.toLowerCase().includes("hashconnect")) {
+          keys.forEach((k) => {
+            if (
+              k.toLowerCase().includes("walletconnect") ||
+              k.toLowerCase().includes("hashconnect")
+            ) {
               localStorage.removeItem(k);
             }
           });
           if (window.indexedDB) window.indexedDB.deleteDatabase("walletconnect-v2");
         }
-      } catch (e) {}
+      } catch (_) {}
     }
 
-    // ── STEP 5: Call init() now that listeners are registered ─────────────────
+    // ── STEP 5: init() — single, guarded call ────────────────────────────────
+    // Project ID verification: WC_PROJECT_ID is explicitly trimmed at the top
+    // of this file and passed as the second arg to the HashConnect constructor.
+    // HashConnect.init() uses that stored projectId internally — no need to
+    // re-pass it here; it is verified once at construction time.
     const doInit = async () => {
       try {
-        // Race init against a 15s timeout.
-        // IMPORTANT: Even if the WalletConnect relay is slow to respond,
-        // we mark isInitialized=true after timeout so HashPack browser extension
-        // can still pair directly — it does not need the relay to be up.
-        await Promise.race([
-          hashconnect.init(),
-          new Promise<void>((resolve) =>
-            setTimeout(() => resolve(), 15000) // resolve (not reject) on timeout
-          ),
-        ]);
+        await hashconnect.init();
 
         if (isMounted) {
           setIsInitialized(true);
-
-          // Restore session if already paired
+          // Restore an existing paired session if one is cached
           const saved = hashconnect.connectedAccountIds;
-          if (saved && saved.length > 0) {
+          if (saved?.length > 0) {
             setAccountId(saved[0].toString());
             setIsConnected(true);
           }
         }
       } catch (err: any) {
-        // Even on error, unlock the connect button so HashPack can attempt pairing
+        // On any init error, still unlock the button — HashPack extension
+        // may be able to pair without a fully established relay.
         if (isMounted) setIsInitialized(true);
       } finally {
-        // Silently restore EVM provider
-        if (typeof window !== "undefined" && originalRequest) {
+        // Always restore window.ethereum.request
+        if (typeof window !== "undefined" && originalEthRequest) {
           try {
-            (window as any).ethereum.request = originalRequest;
-          } catch (e) {}
+            (window as any).ethereum.request = originalEthRequest;
+          } catch (_) {}
         }
         if (isMounted) setIsConnecting(false);
       }
@@ -234,6 +268,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     doInit();
 
+    // Cleanup: mark unmounted so state setters don't fire on stale renders.
+    // We do NOT reset isInitStarted.current here — resetting it would allow
+    // Strict Mode's remount to trigger a second init() call.
     return () => {
       isMounted = false;
       if (typeof window !== "undefined") {
@@ -252,26 +289,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [isConnected, accountId]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
+
   const connect = async () => {
+    // connect() does NOT call hashconnect.init() again — init runs once at
+    // startup via the guarded useEffect. Calling it again here causes the
+    // "WalletConnect Core is already initialized" error. openPairingModal()
+    // already handles generating a fresh pairing string internally.
     try {
       setError(null);
       setIsConnecting(true);
-
-      // Re-run init() fresh on each connect attempt.
-      // This gives the WalletConnect relay a new connection attempt so that
-      // _pairingString is always populated before openPairingModal() is called.
-      // Without this, openPairingModal() throws "URI Missing" because the relay
-      // connection from the background init may have timed out or been incomplete.
-      await hashconnect.init();
-
-      // Small buffer to allow HashPack extension to detect the new session
-      await new Promise(resolve => setTimeout(resolve, 300));
-
+      // Small buffer so HashPack extension has time to detect the new session
+      await new Promise((resolve) => setTimeout(resolve, 300));
       await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
-      // Only surface genuine errors, not internal relay noise
-      if (!msg.includes("EVM") && !msg.includes("ethereum") && !msg.includes("MetaMask")) {
+      if (
+        !msg.includes("EVM") &&
+        !msg.includes("ethereum") &&
+        !msg.includes("MetaMask")
+      ) {
         setError(msg);
       }
     } finally {
@@ -293,20 +329,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const addWagerCredits = (amount: number) => {
     setWagerCredits((prev) => {
       const newVal = prev + amount;
-      try { localStorage.setItem("wagerHub_credits", newVal.toString()); } catch (e) {}
+      try {
+        localStorage.setItem("wagerHub_credits", newVal.toString());
+      } catch (_) {}
       if (accountId) {
         fetch("/api/log-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ accountId, earnedCredits: amount }),
-        }).catch(err => console.warn("Background HCS sync failed:", err));
+        }).catch((err) => console.warn("[WagerWallet] HCS sync failed:", err));
       }
       return newVal;
     });
   };
 
   const refreshBalances = async () => {
-    if (!accountId) { setBalances(defaultBalances); return; }
+    if (!accountId) {
+      setBalances(defaultBalances);
+      return;
+    }
     const [h, w] = await Promise.all([
       fetchHbarBalance(accountId),
       fetchWagerBalance(accountId),
@@ -314,7 +355,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setBalances({ hbar: h, wager: w });
   };
 
-  const executeTransaction = async (transaction: Transaction): Promise<{ txId: string | null; status: string | null } | null> => {
+  const executeTransaction = async (
+    transaction: Transaction
+  ): Promise<{ txId: string | null; status: string | null } | null> => {
     if (!isConnected || !accountId) {
       setError("Wallet not connected.");
       return null;
@@ -338,19 +381,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transaction.freeze();
       }
 
-      console.log("[WagerWallet] Awaiting wallet approval via sendTransaction...");
-
       const TIMEOUT_MS = 60_000;
       let txSettled = false;
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
-          if (!txSettled) reject(new Error("Transaction timed out. Please check your wallet or reconnect."));
+          if (!txSettled)
+            reject(new Error("Transaction timed out. Please check your wallet or reconnect."));
         }, TIMEOUT_MS);
       });
 
       let response: any;
       try {
-        // @ts-ignore
+        // @ts-ignore — version mismatch between HashConnect and Hedera SDK types
         const txPromise = hashconnect.sendTransaction(accountIdObj as any, transaction as any);
         response = await Promise.race([txPromise, timeoutPromise]);
         txSettled = true;
@@ -358,8 +400,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         txSettled = true;
         throw innerErr;
       }
-
-      console.log("[WagerWallet] Raw response from sendTransaction:", JSON.stringify(response));
 
       const rawStatus =
         response?.nodeTransactionPrecheckCode ??
@@ -374,18 +414,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       const txId = response?.transactionId
-        ? (typeof response.transactionId === "string" ? response.transactionId : response.transactionId.toString())
+        ? typeof response.transactionId === "string"
+          ? response.transactionId
+          : response.transactionId.toString()
         : transaction.transactionId?.toString() || null;
 
       console.log("[WagerWallet] ✅ Transaction confirmed. txId:", txId);
       return { txId, status: "SUCCESS" };
     } catch (error: any) {
       const msg: string = error?.message || String(error);
-      if (msg.includes("MetaMask") || msg.includes("extension not found") || msg.includes("No injected provider")) {
-        console.debug("[WagerWallet] Suppressed EVM detection noise:", msg);
-        return null;
+      if (
+        msg.includes("MetaMask") ||
+        msg.includes("extension not found") ||
+        msg.includes("No injected provider")
+      ) {
+        return null; // suppress EVM noise silently
       }
-      console.error("TX_EXECUTION_ERROR:", { message: msg, name: error?.name, code: error?.code });
+      console.error("[WagerWallet] TX_EXECUTION_ERROR:", {
+        message: msg,
+        name: error?.name,
+        code: error?.code,
+      });
       setError(msg || "Transaction failed.");
       return null;
     }
@@ -414,7 +463,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Default export so ClientProviders can import without curly braces
+// Default export for ClientProviders dynamic import (no curly braces needed)
 export default WalletProvider;
 
 export const useWalletContext = () => useContext(WalletContext);
