@@ -161,13 +161,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Temporarily hide window.ethereum so WalletConnect does not attempt EVM auto-connects
-        let originalEthereum: any = undefined;
-        if (typeof window !== "undefined") {
-          originalEthereum = (window as any).ethereum;
+        // Temporarily intercept window.ethereum.request so WalletConnect does not hang on EVM auto-connects
+        let originalRequest: any = undefined;
+        if (typeof window !== "undefined" && (window as any).ethereum) {
           try {
-            // Delete it temporarily if it exists to blind WalletConnect's scanner
-            if (originalEthereum) delete (window as any).ethereum;
+            originalRequest = (window as any).ethereum.request;
+            (window as any).ethereum.request = () => Promise.reject(new Error("MetaMask explicitly disabled during HashConnect init."));
           } catch(e) {}
         }
 
@@ -182,10 +181,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           await Promise.race([initPromise, timeoutPromise]);
           if (isMounted) setIsInitialized(true);
         } finally {
-          // Restore window.ethereum after initialization
-          if (typeof window !== "undefined" && originalEthereum) {
+          // Restore window.ethereum.request after initialization
+          if (typeof window !== "undefined" && originalRequest) {
             try {
-              (window as any).ethereum = originalEthereum;
+              (window as any).ethereum.request = originalRequest;
             } catch(e) {}
           }
         }
