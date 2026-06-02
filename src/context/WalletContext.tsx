@@ -253,18 +253,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const connect = async () => {
-    if (!isInitialized) {
-      setError("Wallet provider is still initializing. Please wait a moment and try again.");
-      return;
-    }
     try {
       setError(null);
-      // 500ms buffer delay to ensure the HashPack extension has settled
-      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsConnecting(true);
+
+      // Re-run init() fresh on each connect attempt.
+      // This gives the WalletConnect relay a new connection attempt so that
+      // _pairingString is always populated before openPairingModal() is called.
+      // Without this, openPairingModal() throws "URI Missing" because the relay
+      // connection from the background init may have timed out or been incomplete.
+      await hashconnect.init();
+
+      // Small buffer to allow HashPack extension to detect the new session
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       await hashconnect.openPairingModal();
     } catch (err: any) {
-      console.error("[WagerWallet] openPairingModal error:", err);
-      setError(err.message || "Failed to open wallet connection modal.");
+      const msg = err?.message || "Failed to connect wallet.";
+      // Only surface genuine errors, not internal relay noise
+      if (!msg.includes("EVM") && !msg.includes("ethereum") && !msg.includes("MetaMask")) {
+        setError(msg);
+      }
+    } finally {
+      setIsConnecting(false);
     }
   };
 
