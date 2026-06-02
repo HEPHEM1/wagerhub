@@ -408,5 +408,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export const hashconnect = null; // Named export kept for backward compat - use useWalletContext instead
+// Default export so ClientProviders can import without curly braces
+export default WalletProvider;
+
 export const useWalletContext = () => useContext(WalletContext);
+export { WalletContext };
