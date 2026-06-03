@@ -132,6 +132,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // triggering a re-render. We intentionally do NOT reset it in the cleanup
   // function — resetting would just let Strict Mode fire the double-init again.
   const isInitStarted = useRef(false);
+  const initErrorRef = useRef<string | null>(null);
 
   // Load WagerCredits from localStorage on mount
   useEffect(() => {
@@ -187,6 +188,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err: any) {
+        console.error("[WagerWallet] Background HashConnect init failed:", err);
+        initErrorRef.current = err?.message || "Unknown HashConnect initialization error";
         if (isMounted) setIsInitialized(true);
       } finally {
         if (isMounted) setIsConnecting(false);
@@ -223,7 +226,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           // Give it a tiny bit of time to settle just in case
           await new Promise((resolve) => setTimeout(resolve, 200));
         } catch (genErr: any) {
-          throw new Error("WalletConnect relay connection failed in the background. Please check your internet connection or Adblocker, and refresh the page.");
+          console.error("[WagerWallet] generatePairingString failed:", genErr);
+          if (initErrorRef.current) {
+            throw new Error(`WalletConnect Initialization Error: ${initErrorRef.current}`);
+          } else {
+            throw new Error(`WalletConnect error: ${genErr?.message || "Unknown error generating pairing string"}`);
+          }
         }
       }
 
