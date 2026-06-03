@@ -219,38 +219,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
-      // Force generation of pairing string if missing
-      if (!hashconnect.pairingString) {
-        try {
-          await (hashconnect as any).generatePairingString();
-          // Give it a tiny bit of time to settle just in case
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        } catch (genErr: any) {
-          console.error("[WagerWallet] generatePairingString failed:", genErr);
-          if (initErrorRef.current) {
-            throw new Error(`WalletConnect Initialization Error: ${initErrorRef.current}`);
-          } else {
-            throw new Error(`WalletConnect error: ${genErr?.message || "Unknown error generating pairing string"}`);
-          }
+      // Use the official public API to open the WalletConnect modal.
+      try {
+        await hashconnect.openPairingModal("dark", "#0b121c", "#00ffff", "#00ffff", "16px");
+      } catch (modalErr: any) {
+        console.error("[WagerWallet] openPairingModal failed:", modalErr);
+        if (initErrorRef.current) {
+          throw new Error(`WalletConnect Initialization Error: ${initErrorRef.current}`);
+        } else {
+          throw new Error(`WalletConnect error: ${modalErr?.message || "Unknown error opening pairing modal"}`);
         }
       }
-
-      const uri = hashconnect.pairingString;
-      
-      // If still missing, the WalletConnect cache is corrupted/stuck.
-      if (!uri) {
-        try { await hashconnect.disconnect(); } catch (_) {}
-        try {
-          localStorage.removeItem("hashconnectData");
-          localStorage.removeItem("walletconnect");
-        } catch (_) {}
-        setError("Session stuck. Cleared cache. Please refresh the page and try connecting again.");
-        return;
-      }
-
-      // Another tiny safety delay before opening the modal
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
       if (
