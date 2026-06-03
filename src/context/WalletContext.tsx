@@ -292,35 +292,77 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const connect = async () => {
-    if (!hashconnect) return;
     try {
       setError(null);
       setIsConnecting(true);
 
-      // ── THE CORE FIX ─────────────────────────────────────────────────────
-      // openPairingModal() reads this._pairingString before opening the modal.
-      // _pairingString is only set by the PRIVATE generatePairingString() which
-      // calls signClient.connect() on the relay. If _pairingString is undefined,
-      // openPairingModal() immediately exits with "URI Missing".
+      // ── Fresh instance on every connect attempt ────────────────────────────
+      // The background init() in useEffect may have failed (relay timeout),
+      // leaving _signClient = null. Calling generatePairingString() on a
+      // null _signClient throws "Cannot read properties of null".
       //
-      // We call generatePairingString() directly via bracket notation (TypeScript
-      // allows this through 'as any') to force a fresh relay URI before the modal.
-      await (hashconnect as any).generatePairingString();
+      // Fix: create a completely fresh HashConnect instance each time the
+      // user clicks "Connect Wallet". This guarantees:
+      //   1. _signClient is always newly created (no stale null state)
+      //   2. No "WalletConnect Core is already initialized" conflicts
+      //   3. Stale sessions can't cause signClient.connect() to return uri:undefined
+      //
+      // Wipe storage before creating the fresh instance.
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (
+            k.toLowerCase().includes("walletconnect") ||
+            k.toLowerCase().includes("hashconnect") ||
+            k.toLowerCase().includes("wc@2") ||
+            k.toLowerCase().startsWith("wc:")
+          ) localStorage.removeItem(k);
+        });
+        window.indexedDB?.deleteDatabase("walletconnect-v2");
+        window.indexedDB?.deleteDatabase("WALLET_CONNECT_V2_INDEXED_DB");
+      } catch (_) {}
 
-      // Confirm _pairingString is now populated
-      const uri = (hashconnect as any)._pairingString;
+      const freshHC = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
+
+      // Register events on the fresh instance so pairing still fires into context state
+      freshHC.pairingEvent.on((pairingData) => {
+        if (pairingData.accountIds?.length > 0) {
+          setAccountId(pairingData.accountIds[0].toString());
+          setIsConnected(true);
+          setError(null);
+        }
+      });
+      freshHC.disconnectionEvent.on(() => {
+        setAccountId(null);
+        setIsConnected(false);
+        setBalances(defaultBalances);
+      });
+      freshHC.connectionStatusChangeEvent.on((state) => {
+        setIsConnecting(state === HashConnectConnectionState.Connecting);
+      });
+
+      // init() establishes the WalletConnect relay WebSocket + SignClient
+      await freshHC.init();
+
+      // generatePairingString() calls signClient.connect() → gets relay URI
+      // and stores it in _pairingString for openPairingModal() to read
+      await (freshHC as any).generatePairingString();
+
+      const uri = (freshHC as any)._pairingString;
       if (!uri) {
-        setError("Could not reach WalletConnect relay. Please check your connection and try again.");
+        setError("WalletConnect relay unreachable. Check your internet connection and try again.");
         return;
       }
 
-      await hashconnect.openPairingModal();
+      // openPairingModal() reads _pairingString and opens the QR / HashPack modal
+      await freshHC.openPairingModal();
+
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
       if (
         !msg.includes("EVM") &&
         !msg.includes("ethereum") &&
-        !msg.includes("MetaMask")
+        !msg.includes("MetaMask") &&
+        !msg.includes("already initialized")
       ) {
         setError(msg);
       }
@@ -328,6 +370,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setIsConnecting(false);
     }
   };
+
 
   const disconnect = async () => {
     try {
