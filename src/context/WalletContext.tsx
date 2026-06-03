@@ -214,51 +214,31 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
-      let activeHC = hashconnect;
-
       // If background init() failed (e.g. WebSocket blocked), _signClient is null.
-      // Calling generatePairingString() will throw "Cannot read properties of undefined (reading 'connect')".
-      // We must create a fresh instance, initialize it, and update the global state.
-      if (!(activeHC as any)._signClient) {
-        console.log("[WagerWallet] Background init failed. Creating fresh HashConnect instance.");
-        
-        activeHC = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
-        
-        activeHC.pairingEvent.on((pairingData) => {
-          if (pairingData.accountIds?.length > 0) {
-            setAccountId(pairingData.accountIds[0].toString());
-            setIsConnected(true);
-            setError(null);
-          }
-        });
-        activeHC.disconnectionEvent.on(() => {
-          setAccountId(null);
-          setIsConnected(false);
-          setBalances(defaultBalances);
-        });
-        activeHC.connectionStatusChangeEvent.on((state) => {
-          setIsConnecting(state === HashConnectConnectionState.Connecting);
-        });
-
-        await activeHC.init();
-        setHashconnect(activeHC); // Update the global context state!
+      // Calling generatePairingString() will throw "Cannot read properties of undefined".
+      // Since WalletConnect Core is a singleton, creating a NEW HashConnect instance
+      // causes "Core already initialized" errors. Instead, we retry init() on the
+      // existing instance.
+      if (!(hashconnect as any)._signClient) {
+        console.log("[WagerWallet] Background init failed. Retrying init on existing instance.");
+        await hashconnect.init();
         
         // Wait for WalletConnect modal DOM container to be ready to prevent "Node cannot be found" error
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       // Force generation of pairing string if missing
-      if (!(activeHC as any)._pairingString) {
-        await (activeHC as any).generatePairingString();
+      if (!(hashconnect as any)._pairingString) {
+        await (hashconnect as any).generatePairingString();
         // Give it a tiny bit of time to settle just in case
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
-      const uri = (activeHC as any)._pairingString;
+      const uri = (hashconnect as any)._pairingString;
       
       // If still missing, the WalletConnect cache is corrupted/stuck.
       if (!uri) {
-        try { await activeHC.disconnect(); } catch (_) {}
+        try { await hashconnect.disconnect(); } catch (_) {}
         try {
           localStorage.removeItem("hashconnectData");
           localStorage.removeItem("walletconnect");
@@ -269,7 +249,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Another tiny safety delay before opening the modal
       await new Promise((resolve) => setTimeout(resolve, 300));
-      await activeHC.openPairingModal();
+      await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
       if (
