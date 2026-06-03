@@ -114,9 +114,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   // Single HashConnect instance — created once for the lifetime of this provider.
-  // Passing WC_PROJECT_ID explicitly so the relay uses the verified project ID.
+  // LedgerId.TESTNET  — WagerHub Season 1 runs on Hedera Testnet.
+  // debug: true        — enables WalletConnect relay logs so init failures are visible.
+  // WC_PROJECT_ID is trimmed at the top of this file to prevent Vercel whitespace bugs.
+  const projectId = WC_PROJECT_ID;
   const [hashconnect] = useState(
-    () => new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, false)
+    () => new HashConnect(LedgerId.TESTNET, projectId, appMetadata, true)
   );
 
   // ── Initialization lock ───────────────────────────────────────────────────
@@ -288,25 +291,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, accountId]);
 
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  // v3 connect: openPairingModal() is the correct WalletConnect modal trigger.
+  // We do NOT call hashconnect.init() here — that runs exactly once in the
+  // guarded useEffect above. Re-calling init() produces the
+  // "WalletConnect Core is already initialized" error.
   const connect = async () => {
+    if (!hashconnect) return;
     try {
       setError(null);
       setIsConnecting(true);
-
-      // ── Why generatePairingString() is called first ────────────────────────
-      // openPairingModal() reads this._pairingString at its very first line.
-      // If it is undefined it immediately logs "hashconnect - URI Missing" and
-      // exits — the WalletConnect modal never opens. _pairingString is only
-      // populated by the private generatePairingString() method which calls
-      // this._signClient.connect() to get a fresh WalletConnect proposal URI.
-      // We call it explicitly via a type-cast before openPairingModal() so the
-      // URI is always ready.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (hashconnect as any).generatePairingString();
-
-      // Small buffer so HashPack extension can detect the new WalletConnect session
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
       await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
