@@ -216,10 +216,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       let activeHC = hashconnect;
 
-      // If background init() failed (e.g. WebSocket blocked), signClient is null.
+      // If background init() failed (e.g. WebSocket blocked), _signClient is null.
       // Calling generatePairingString() will throw "Cannot read properties of undefined (reading 'connect')".
       // We must create a fresh instance, initialize it, and update the global state.
-      if (!(activeHC as any).signClient) {
+      if (!(activeHC as any)._signClient) {
         console.log("[WagerWallet] Background init failed. Creating fresh HashConnect instance.");
         
         activeHC = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
@@ -242,11 +242,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
         await activeHC.init();
         setHashconnect(activeHC); // Update the global context state!
+        
+        // Wait for WalletConnect modal DOM container to be ready to prevent "Node cannot be found" error
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       // Force generation of pairing string if missing
       if (!(activeHC as any)._pairingString) {
         await (activeHC as any).generatePairingString();
+        // Give it a tiny bit of time to settle just in case
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
       const uri = (activeHC as any)._pairingString;
@@ -262,6 +267,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Another tiny safety delay before opening the modal
+      await new Promise((resolve) => setTimeout(resolve, 300));
       await activeHC.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
