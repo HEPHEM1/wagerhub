@@ -118,7 +118,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // debug: true        — enables WalletConnect relay logs so init failures are visible.
   // WC_PROJECT_ID is trimmed at the top of this file to prevent Vercel whitespace bugs.
   const projectId = WC_PROJECT_ID;
-  const [hashconnect] = useState(
+  const [hashconnect, setHashconnect] = useState(
     () => new HashConnect(LedgerId.TESTNET, projectId, appMetadata, true)
   );
 
@@ -214,17 +214,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
-      // Force generation of pairing string if missing (e.g. after a silent fail)
-      if (!(hashconnect as any)._pairingString) {
-        await (hashconnect as any).generatePairingString();
+      let activeHC = hashconnect;
+
+      // If background init() failed (e.g. WebSocket blocked), signClient is null.
+      // Calling generatePairingString() will throw "Cannot read properties of undefined (reading 'connect')".
+      // We must create a fresh instance, initialize it, and update the global state.
+      if (!(activeHC as any).signClient) {
+        console.log("[WagerWallet] Background init failed. Creating fresh HashConnect instance.");
+        
+        activeHC = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
+        
+        activeHC.pairingEvent.on((pairingData) => {
+          if (pairingData.accountIds?.length > 0) {
+            setAccountId(pairingData.accountIds[0].toString());
+            setIsConnected(true);
+            setError(null);
+          }
+        });
+        activeHC.disconnectionEvent.on(() => {
+          setAccountId(null);
+          setIsConnected(false);
+          setBalances(defaultBalances);
+        });
+        activeHC.connectionStatusChangeEvent.on((state) => {
+          setIsConnecting(state === HashConnectConnectionState.Connecting);
+        });
+
+        await activeHC.init();
+        setHashconnect(activeHC); // Update the global context state!
       }
 
-      const uri = (hashconnect as any)._pairingString;
+      // Force generation of pairing string if missing
+      if (!(activeHC as any)._pairingString) {
+        await (activeHC as any).generatePairingString();
+      }
+
+      const uri = (activeHC as any)._pairingString;
       
       // If still missing, the WalletConnect cache is corrupted/stuck.
-      // Disconnect to clear internal state and prompt a reload.
       if (!uri) {
-        try { await hashconnect.disconnect(); } catch (_) {}
+        try { await activeHC.disconnect(); } catch (_) {}
         try {
           localStorage.removeItem("hashconnectData");
           localStorage.removeItem("walletconnect");
@@ -233,7 +262,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      await hashconnect.openPairingModal();
+      await activeHC.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
       if (
