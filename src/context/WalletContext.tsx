@@ -144,18 +144,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // ── Bootstrap HashConnect (listeners FIRST, then init — once only) ────────
   useEffect(() => {
     // ── INITIALIZATION LOCK ───────────────────────────────────────────────────
-    // Guard against Strict Mode double-fire and any other re-render that
-    // might call this effect again. Once set, init never runs a second time.
     if (isInitStarted.current) return;
     isInitStarted.current = true;
     // ─────────────────────────────────────────────────────────────────────────
 
     let isMounted = true;
-
-    // ── STEP 1: Register ALL event listeners BEFORE init() ───────────────────
-    // HashConnect v3 fires pairingEvent and connectionStatusChangeEvent
-    // DURING init() to restore existing sessions. Registering after init()
-    // means those events are missed permanently.
 
     hashconnect.pairingEvent.on((pairingData) => {
       if (!isMounted) return;
@@ -179,73 +172,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setIsConnecting(state === HashConnectConnectionState.Connecting);
     });
 
-    // ── STEP 2: Silently suppress EVM provider noise ──────────────────────────
-    // WalletConnect's SDK scans for window.ethereum on startup (it's designed
-    // for EVM chains). WagerHub is Hedera-only — we suppress this silently.
-    const evmRejectionHandler = (event: PromiseRejectionEvent) => {
-      const msg = event?.reason?.message || String(event?.reason || "");
-      if (
-        msg.includes("MetaMask") ||
-        msg.includes("extension not found") ||
-        msg.includes("ethereum") ||
-        msg.includes("No injected provider") ||
-        msg.includes("EVM provider not used")
-      ) {
-        event.preventDefault();
-      }
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("unhandledrejection", evmRejectionHandler);
-    }
-
-    // ── STEP 3: Intercept window.ethereum.request to prevent hang ────────────
-    // WalletConnect probes window.ethereum during init. If MetaMask is installed
-    // it tries to connect, stalling the relay handshake. We override .request()
-    // to reject instantly, then restore it after init completes.
-    let originalEthRequest: any = undefined;
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      try {
-        originalEthRequest = (window as any).ethereum.request;
-        (window as any).ethereum.request = () =>
-          Promise.reject(new Error("EVM provider not used in this application."));
-      } catch (_) {}
-    }
-
-    // ── STEP 4: Unconditionally clear ALL WalletConnect/HashConnect storage ────
-    // Stale sessions cause signClient.connect() to return {uri: undefined}
-    // because WalletConnect thinks there's already an active session and skips
-    // URI generation. We wipe on every cold start so init always gets a clean slate.
-    if (typeof window !== "undefined") {
-      try {
-        Object.keys(localStorage).forEach((k) => {
-          if (
-            k.toLowerCase().includes("walletconnect") ||
-            k.toLowerCase().includes("hashconnect") ||
-            k.toLowerCase().includes("wc@2") ||
-            k.toLowerCase().includes("wc:")
-          ) {
-            localStorage.removeItem(k);
-          }
-        });
-        if (window.indexedDB) {
-          window.indexedDB.deleteDatabase("walletconnect-v2");
-          window.indexedDB.deleteDatabase("WALLET_CONNECT_V2_INDEXED_DB");
-        }
-      } catch (_) {}
-    }
-
-    // ── STEP 5: init() — single, guarded call ────────────────────────────────
-    // Project ID verification: WC_PROJECT_ID is explicitly trimmed at the top
-    // of this file and passed as the second arg to the HashConnect constructor.
-    // HashConnect.init() uses that stored projectId internally — no need to
-    // re-pass it here; it is verified once at construction time.
     const doInit = async () => {
       try {
         await hashconnect.init();
 
         if (isMounted) {
           setIsInitialized(true);
-          // Restore an existing paired session if one is cached
           const saved = hashconnect.connectedAccountIds;
           if (saved?.length > 0) {
             setAccountId(saved[0].toString());
@@ -253,30 +185,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err: any) {
-        // On any init error, still unlock the button — HashPack extension
-        // may be able to pair without a fully established relay.
         if (isMounted) setIsInitialized(true);
       } finally {
-        // Always restore window.ethereum.request
-        if (typeof window !== "undefined" && originalEthRequest) {
-          try {
-            (window as any).ethereum.request = originalEthRequest;
-          } catch (_) {}
-        }
         if (isMounted) setIsConnecting(false);
       }
     };
 
     doInit();
 
-    // Cleanup: mark unmounted so state setters don't fire on stale renders.
-    // We do NOT reset isInitStarted.current here — resetting it would allow
-    // Strict Mode's remount to trigger a second init() call.
     return () => {
       isMounted = false;
-      if (typeof window !== "undefined") {
-        window.removeEventListener("unhandledrejection", evmRejectionHandler);
-      }
     };
   }, [hashconnect]);
 
@@ -296,66 +214,26 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
-      // ── Fresh instance on every connect attempt ────────────────────────────
-      // The background init() in useEffect may have failed (relay timeout),
-      // leaving _signClient = null. Calling generatePairingString() on a
-      // null _signClient throws "Cannot read properties of null".
-      //
-      // Fix: create a completely fresh HashConnect instance each time the
-      // user clicks "Connect Wallet". This guarantees:
-      //   1. _signClient is always newly created (no stale null state)
-      //   2. No "WalletConnect Core is already initialized" conflicts
-      //   3. Stale sessions can't cause signClient.connect() to return uri:undefined
-      //
-      // Wipe storage before creating the fresh instance.
-      try {
-        Object.keys(localStorage).forEach((k) => {
-          if (
-            k.toLowerCase().includes("walletconnect") ||
-            k.toLowerCase().includes("hashconnect") ||
-            k.toLowerCase().includes("wc@2") ||
-            k.toLowerCase().startsWith("wc:")
-          ) localStorage.removeItem(k);
-        });
-        window.indexedDB?.deleteDatabase("walletconnect-v2");
-        window.indexedDB?.deleteDatabase("WALLET_CONNECT_V2_INDEXED_DB");
-      } catch (_) {}
+      // Force generation of pairing string if missing (e.g. after a silent fail)
+      if (!(hashconnect as any)._pairingString) {
+        await (hashconnect as any).generatePairingString();
+      }
 
-      const freshHC = new HashConnect(LedgerId.TESTNET, WC_PROJECT_ID, appMetadata, true);
-
-      // Register events on the fresh instance so pairing still fires into context state
-      freshHC.pairingEvent.on((pairingData) => {
-        if (pairingData.accountIds?.length > 0) {
-          setAccountId(pairingData.accountIds[0].toString());
-          setIsConnected(true);
-          setError(null);
-        }
-      });
-      freshHC.disconnectionEvent.on(() => {
-        setAccountId(null);
-        setIsConnected(false);
-        setBalances(defaultBalances);
-      });
-      freshHC.connectionStatusChangeEvent.on((state) => {
-        setIsConnecting(state === HashConnectConnectionState.Connecting);
-      });
-
-      // init() establishes the WalletConnect relay WebSocket + SignClient
-      await freshHC.init();
-
-      // generatePairingString() calls signClient.connect() → gets relay URI
-      // and stores it in _pairingString for openPairingModal() to read
-      await (freshHC as any).generatePairingString();
-
-      const uri = (freshHC as any)._pairingString;
+      const uri = (hashconnect as any)._pairingString;
+      
+      // If still missing, the WalletConnect cache is corrupted/stuck.
+      // Disconnect to clear internal state and prompt a reload.
       if (!uri) {
-        setError("WalletConnect relay unreachable. Check your internet connection and try again.");
+        try { await hashconnect.disconnect(); } catch (_) {}
+        try {
+          localStorage.removeItem("hashconnectData");
+          localStorage.removeItem("walletconnect");
+        } catch (_) {}
+        setError("Session stuck. Cleared cache. Please refresh the page and try connecting again.");
         return;
       }
 
-      // openPairingModal() reads _pairingString and opens the QR / HashPack modal
-      await freshHC.openPairingModal();
-
+      await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
       if (
