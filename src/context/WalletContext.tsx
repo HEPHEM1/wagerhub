@@ -25,7 +25,9 @@ const appMetadata = {
   name: "WagerHub",
   description: "Universal Web3 Arcade and DeFi Terminal on Hedera.",
   icons: ["https://wagerhub.vercel.app/logo.png"],
-  url: "https://wagerhub.vercel.app",
+  // WalletConnect v2 strictly requires this to match the actual domain in the browser bar.
+  // If tested on a Vercel preview link, a hardcoded URL will cause silent init failures!
+  url: typeof window !== "undefined" ? window.location.origin : "https://wagerhub.vercel.app",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -214,17 +216,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
-      // If background init() failed (e.g. WebSocket blocked), _signClient is null.
+      // If background init() failed (e.g. WebSocket blocked, or domain mismatch), _signClient is null.
       // Calling generatePairingString() will throw "Cannot read properties of undefined".
-      // Since WalletConnect Core is a singleton, creating a NEW HashConnect instance
-      // causes "Core already initialized" errors. Instead, we retry init() on the
-      // existing instance.
+      // WalletConnect Core is a strict singleton, so we cannot safely retry init() here without
+      // causing "Core already initialized" crashes. We must ask the user to reload.
       if (!(hashconnect as any)._signClient) {
-        console.log("[WagerWallet] Background init failed. Retrying init on existing instance.");
-        await hashconnect.init();
-        
-        // Wait for WalletConnect modal DOM container to be ready to prevent "Node cannot be found" error
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        throw new Error("WalletConnect relay connection failed in the background. Please refresh the page (Ctrl+F5). If you are using Brave, you may need to lower your Shields.");
       }
 
       // Force generation of pairing string if missing
