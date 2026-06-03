@@ -211,27 +211,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       } catch (_) {}
     }
 
-    // ── STEP 4: Purge corrupted WalletConnect cache ───────────────────────────
+    // ── STEP 4: Unconditionally clear ALL WalletConnect/HashConnect storage ────
+    // Stale sessions cause signClient.connect() to return {uri: undefined}
+    // because WalletConnect thinks there's already an active session and skips
+    // URI generation. We wipe on every cold start so init always gets a clean slate.
     if (typeof window !== "undefined") {
       try {
-        const keys = Object.keys(localStorage);
-        const hasCorrupted = keys.some((k) => {
-          const v = localStorage.getItem(k) || "";
-          return (
-            (k.includes("walletconnect") || k.includes("hashconnect")) &&
-            v.includes("undefined")
-          );
+        Object.keys(localStorage).forEach((k) => {
+          if (
+            k.toLowerCase().includes("walletconnect") ||
+            k.toLowerCase().includes("hashconnect") ||
+            k.toLowerCase().includes("wc@2") ||
+            k.toLowerCase().includes("wc:")
+          ) {
+            localStorage.removeItem(k);
+          }
         });
-        if (hasCorrupted) {
-          keys.forEach((k) => {
-            if (
-              k.toLowerCase().includes("walletconnect") ||
-              k.toLowerCase().includes("hashconnect")
-            ) {
-              localStorage.removeItem(k);
-            }
-          });
-          if (window.indexedDB) window.indexedDB.deleteDatabase("walletconnect-v2");
+        if (window.indexedDB) {
+          window.indexedDB.deleteDatabase("walletconnect-v2");
+          window.indexedDB.deleteDatabase("WALLET_CONNECT_V2_INDEXED_DB");
         }
       } catch (_) {}
     }
@@ -293,15 +291,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  // v3 connect: openPairingModal() is the correct WalletConnect modal trigger.
-  // We do NOT call hashconnect.init() here — that runs exactly once in the
-  // guarded useEffect above. Re-calling init() produces the
-  // "WalletConnect Core is already initialized" error.
   const connect = async () => {
     if (!hashconnect) return;
     try {
       setError(null);
       setIsConnecting(true);
+
+      // ── THE CORE FIX ─────────────────────────────────────────────────────
+      // openPairingModal() reads this._pairingString before opening the modal.
+      // _pairingString is only set by the PRIVATE generatePairingString() which
+      // calls signClient.connect() on the relay. If _pairingString is undefined,
+      // openPairingModal() immediately exits with "URI Missing".
+      //
+      // We call generatePairingString() directly via bracket notation (TypeScript
+      // allows this through 'as any') to force a fresh relay URI before the modal.
+      await (hashconnect as any).generatePairingString();
+
+      // Confirm _pairingString is now populated
+      const uri = (hashconnect as any)._pairingString;
+      if (!uri) {
+        setError("Could not reach WalletConnect relay. Please check your connection and try again.");
+        return;
+      }
+
       await hashconnect.openPairingModal();
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
