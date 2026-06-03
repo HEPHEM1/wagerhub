@@ -216,22 +216,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
-      // If background init() failed (e.g. WebSocket blocked, or domain mismatch), _signClient is null.
-      // Calling generatePairingString() will throw "Cannot read properties of undefined".
-      // WalletConnect Core is a strict singleton, so we cannot safely retry init() here without
-      // causing "Core already initialized" crashes. We must ask the user to reload.
-      if (!(hashconnect as any)._signClient) {
-        throw new Error("WalletConnect relay connection failed in the background. Please refresh the page (Ctrl+F5). If you are using Brave, you may need to lower your Shields.");
-      }
-
       // Force generation of pairing string if missing
-      if (!(hashconnect as any)._pairingString) {
-        await (hashconnect as any).generatePairingString();
-        // Give it a tiny bit of time to settle just in case
-        await new Promise((resolve) => setTimeout(resolve, 200));
+      if (!hashconnect.pairingString) {
+        try {
+          await (hashconnect as any).generatePairingString();
+          // Give it a tiny bit of time to settle just in case
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        } catch (genErr: any) {
+          throw new Error("WalletConnect relay connection failed in the background. Please check your internet connection or Adblocker, and refresh the page.");
+        }
       }
 
-      const uri = (hashconnect as any)._pairingString;
+      const uri = hashconnect.pairingString;
       
       // If still missing, the WalletConnect cache is corrupted/stuck.
       if (!uri) {
