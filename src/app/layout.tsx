@@ -56,22 +56,7 @@ export default function RootLayout({
             __html: `
 (function() {
   try {
-    // 1. Seal window.ethereum.request before MetaMask auto-connect fires
-    if (typeof window !== 'undefined' && window.ethereum) {
-      var _orig = window.ethereum.request.bind(window.ethereum);
-      window.ethereum.request = function(args) {
-        var method = args && args.method;
-        // Block auto-connect probe methods — let manual calls through later
-        if (method === 'eth_accounts' || method === 'eth_requestAccounts' || method === 'eth_chainId') {
-          return Promise.reject(new Error('EVM auto-connect suppressed. WagerHub uses Hedera/HashPack.'));
-        }
-        return _orig(args);
-      };
-    }
-  } catch(e) {}
-
-  try {
-    // 2. Swallow errors thrown by chrome-extension:// scripts (MetaMask inpage.js)
+    // 1. Swallow errors thrown by chrome-extension:// scripts (MetaMask inpage.js)
     var _origError = window.onerror;
     window.onerror = function(msg, src, line, col, err) {
       if (src && src.indexOf('chrome-extension://') === 0) return true; // suppress
@@ -80,7 +65,7 @@ export default function RootLayout({
   } catch(e) {}
 
   try {
-    // 3. Suppress unhandled EVM promise rejections globally
+    // 2. Suppress unhandled EVM promise rejections globally
     window.addEventListener('unhandledrejection', function(event) {
       var msg = (event.reason && event.reason.message) ? event.reason.message : String(event.reason || '');
       if (
