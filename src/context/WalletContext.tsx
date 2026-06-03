@@ -244,6 +244,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         try {
           localStorage.removeItem("hashconnectData");
           localStorage.removeItem("walletconnect");
+          if (typeof indexedDB !== "undefined") {
+            indexedDB.deleteDatabase("walletconnect-v2.db");
+          }
         } catch (_) {}
         throw new Error("WalletConnect session cache is corrupted (URI Missing). We have automatically cleared the cache. Please refresh the page (Ctrl+F5) to connect.");
       }
