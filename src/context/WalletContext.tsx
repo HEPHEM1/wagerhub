@@ -235,6 +235,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           throw new Error(`WalletConnect error: ${modalErr?.message || "Unknown error opening pairing modal"}`);
         }
       }
+
+      // HashConnect's openPairingModal catches its own errors internally and fails silently (logging "URI Missing").
+      // We can detect this silent failure by checking if the pairingString was populated.
+      if (!hashconnect.pairingString) {
+        try {
+          localStorage.removeItem("hashconnectData");
+          localStorage.removeItem("walletconnect");
+        } catch (_) {}
+        throw new Error("WalletConnect session cache is corrupted (URI Missing). We have automatically cleared the cache. Please refresh the page (Ctrl+F5) to connect.");
+      }
     } catch (err: any) {
       const msg = err?.message || "Failed to connect wallet.";
       if (
