@@ -238,7 +238,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // HashConnect's openPairingModal catches its own errors internally and fails silently (logging "URI Missing").
       // We can detect this silent failure by checking if the pairingString was populated.
-      if (!hashconnect.pairingString) {
+      // NOTE: HashConnect assigns the string literal "undefined testnet" if the URI fails to generate,
+      // which is truthy! We must explicitly check for the word "undefined".
+      if (!hashconnect.pairingString || hashconnect.pairingString.includes("undefined")) {
         try {
           localStorage.removeItem("hashconnectData");
           localStorage.removeItem("walletconnect");
