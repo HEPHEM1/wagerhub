@@ -219,6 +219,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
       setIsConnecting(true);
 
+      // HashConnect v3 has a known race condition where invoking openPairingModal() too quickly
+      // before the extension finishes initializing results in "URI Missing" and a crash.
+      // We must add a mandatory delay to give it time to breathe.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Use the official public API to open the WalletConnect modal.
       try {
         await hashconnect.openPairingModal("dark", "#0b121c", "#00ffff", "#00ffff", "16px");
