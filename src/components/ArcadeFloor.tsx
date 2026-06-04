@@ -53,6 +53,8 @@ export default function ArcadeFloor() {
       description: "Drop the ball. Defy the odds.",
       icon: <Target size={48} className="text-orange-500" />,
       color: "bg-orange-500/10 border-orange-500/30",
+      backgroundImage: "bg-[url('/GD.jpg')]",
+      overlayClass: "from-black/95 via-black/50 to-transparent",
     },
     {
       id: "degen-dice",
