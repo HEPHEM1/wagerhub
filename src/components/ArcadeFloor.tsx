@@ -37,6 +37,8 @@ export default function ArcadeFloor() {
       description: "Hazard grid. Compound multipliers.",
       icon: <Target size={48} className="text-wager-cyan" />,
       color: "bg-wager-cyan/10 border-wager-cyan/30",
+      backgroundImage: "bg-[url('/mystery%20field.jpg')]",
+      overlayClass: "from-black/95 via-black/50 to-transparent",
     },
     {
       id: "rps-zero-trust",
