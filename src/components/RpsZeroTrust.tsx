@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Lock, Unlock, Link as LinkIcon, RefreshCw, AlertCircle } from "lucide-react";
+import { X, Lock, Unlock, Link as LinkIcon, RefreshCw, AlertCircle, ArrowLeft, HelpCircle } from "lucide-react";
 import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 import { useWalletContext } from "../context/WalletContext";
@@ -158,6 +158,22 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
         />
       )}
 
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+        <button 
+          onClick={onClose}
+          className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <button
+          onClick={() => { onClose(); window.location.hash = "rps-zero-trust"; }}
+          className="flex items-center gap-2 px-4 py-2 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/70 hover:text-white text-sm font-bold uppercase tracking-wider"
+        >
+          <HelpCircle size={16} />
+          How to Play
+        </button>
+      </div>
+
       {/* Left Pane: Staking & Controls */}
       <div className="w-80 bg-wager-black/70 border-r border-white/5 p-8 flex flex-col justify-between relative z-50">
         <div>
@@ -234,13 +250,6 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
       {/* Right Pane: Gameplay */}
       <div className="flex-1 p-12 flex flex-col relative z-10 overflow-y-auto">
         
-        <button 
-          onClick={onClose}
-          className="absolute top-8 right-8 p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group z-50"
-        >
-          <X size={20} className="text-white/50 group-hover:text-white transition-colors" />
-        </button>
-
         {/* Cryptographic Proof Console */}
         <div className="mb-12">
           <h4 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">

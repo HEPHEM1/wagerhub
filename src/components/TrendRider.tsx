@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, TrendingDown, Coins, Loader2, ArrowLeft, Target, ShieldAlert } from "lucide-react";
+import { TrendingUp, TrendingDown, Coins, Loader2, ArrowLeft, Target, ShieldAlert, HelpCircle } from "lucide-react";
 import { useWalletContext } from "../context/WalletContext";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
@@ -302,12 +302,21 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       className={`relative w-full max-w-7xl h-[90vh] flex flex-col md:flex-row bg-wager-charcoal/90 backdrop-blur-3xl rounded-[3rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] border border-white/10 ${shake ? "animate-shake" : ""}`}
       style={{ boxShadow: gameState === "active" ? `inset 0 0 50px ${pulseColor}` : "" }}
     >
-      <button 
-        onClick={onBack}
-        className="absolute top-6 left-6 z-50 p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
-      >
-        <ArrowLeft size={24} />
-      </button>
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+        <button 
+          onClick={onBack}
+          className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <button
+          onClick={() => { onBack(); window.location.hash = "trend-rider"; }}
+          className="flex items-center gap-2 px-4 py-2 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/70 hover:text-white text-sm font-bold uppercase tracking-wider"
+        >
+          <HelpCircle size={16} />
+          How to Play
+        </button>
+      </div>
 
       {/* Chart Pane */}
       <div className="flex-1 relative flex flex-col justify-between overflow-hidden">

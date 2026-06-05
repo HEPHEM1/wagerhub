@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Skull, Zap, Loader2, Footprints, Info, Sparkles } from "lucide-react";
+import { Shield, Skull, Zap, Loader2, Footprints, Info, Sparkles, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
@@ -274,13 +274,22 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* Exit Button */}
-      <button 
-        onClick={onClose}
-        className="absolute top-12 left-12 z-[90] p-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all group"
-      >
-        <Footprints className="text-zinc-500 group-hover:text-wager-cyan" size={24} />
-      </button>
+      {/* Header Buttons */}
+      <div className="absolute top-12 left-12 z-[90] flex items-center gap-4">
+        <button 
+          onClick={onClose}
+          className="p-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all group"
+        >
+          <Footprints className="text-zinc-500 group-hover:text-wager-cyan" size={24} />
+        </button>
+        <button
+          onClick={() => { onClose(); window.location.hash = "blind-loot"; }}
+          className="flex items-center gap-2 px-6 py-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-zinc-500 hover:text-white text-sm font-bold uppercase tracking-wider"
+        >
+          <HelpCircle size={20} />
+          How to Play
+        </button>
+      </div>
 
       <style jsx>{`
         @keyframes marquee {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Grid3X3, Loader2 } from "lucide-react";
+import { Coins, Grid3X3, Loader2, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
@@ -219,6 +219,22 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         gameState === "bust" ? "border-wager-red/50 shadow-[0_0_50px_rgba(255,0,0,0.2)]" : "border-wager-cyan/20"
       }`}
     >
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+        <button 
+          onClick={onClose}
+          className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <button
+          onClick={() => { onClose(); window.location.hash = "mystery-field"; }}
+          className="flex items-center gap-2 px-4 py-2 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/70 hover:text-white text-sm font-bold uppercase tracking-wider"
+        >
+          <HelpCircle size={16} />
+          How to Play
+        </button>
+      </div>
+
       <AnimatePresence>
         {gameState === "bust" && (
           <motion.div

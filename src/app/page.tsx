@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ArcadeFloor from "@/components/ArcadeFloor";
 import Leaderboard from "@/components/Leaderboard";
 import Wagerswap from "@/components/Wagerswap";
 import Header from "@/components/Header";
-import LandingPage from "@/components/LandingPage";
-import { Gamepad2, ArrowRightLeft, TrendingUp } from "lucide-react";
+import About from "@/components/About";
+import { Gamepad2, ArrowRightLeft, TrendingUp, HelpCircle } from "lucide-react";
 
-type ViewState = "arcade" | "swap" | "leaderboard";
+type ViewState = "arcade" | "swap" | "leaderboard" | "about";
 
 export default function Home() {
   const [hasEntered, setHasEntered] = useState(false);
@@ -18,6 +18,23 @@ export default function Home() {
   if (!hasEntered) {
     return <LandingPage onEnter={() => setHasEntered(true)} />;
   }
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      const gameIds = ["#wager-swap", "#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
+      if (gameIds.includes(hash)) {
+        setActiveView("about");
+        // The About component's own useEffect will handle the scrolling once it mounts
+      }
+    };
+
+    // Check on mount
+    handleHashChange();
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   return (
     <>
@@ -39,6 +56,7 @@ export default function Home() {
             { id: "swap", label: "WAGER SWAP", icon: <ArrowRightLeft size={18} />, color: "text-wager-cyan" },
             { id: "arcade", label: "WAGER ARCADE", icon: <Gamepad2 size={18} />, color: "text-wager-lime" },
             { id: "leaderboard", label: "LEADERBOARD", icon: <TrendingUp size={18} />, color: "text-amber-400" },
+            { id: "about", label: "ABOUT", icon: <HelpCircle size={18} />, color: "text-white" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -107,6 +125,19 @@ export default function Home() {
                 <div className="w-full max-w-4xl relative">
                   <Wagerswap />
                 </div>
+              </motion.div>
+            )}
+
+            {activeView === "about" && (
+              <motion.div
+                key="about"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-1 w-full h-full absolute inset-0 overflow-y-auto custom-scrollbar"
+              >
+                <About />
               </motion.div>
             )}
           </AnimatePresence>

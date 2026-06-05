@@ -1,18 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { XCircle, Coins, Loader2, Footprints, Target, Info } from "lucide-react";
+import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
-import PenaltyPhysicsCanvas, { ShotScenario } from "./PenaltyPhysicsCanvas";
-import IdleKeeperCanvas from "./IdleKeeperCanvas";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
 const WAGER_TOKEN_ID = TokenId.fromString((process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim());
 
-type GameState = "setup" | "kicking" | "animating" | "goal" | "saved" | "missed";
+type GameState = "setup" | "kicking" | "goal" | "saved";
 
 const ZONES = [
   { id: 0, label: "Top Left", grid: "row-start-1 col-start-1" },
@@ -31,31 +29,20 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
   const [keeperZones, setKeeperZones] = useState<number[]>([]);
   const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
-  const [shotScenario, setShotScenario] = useState<ShotScenario | null>(null);
 
   const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
 
-  // ── Auto-reset after final states ──────────────────────────────────────────
+  // ── Auto-reset after GOAL or SAVED ─────────────────────────────────────────
   useEffect(() => {
-    if (gameState === "goal" || gameState === "saved" || gameState === "missed") {
+    if (gameState === "goal" || gameState === "saved") {
       const timer = setTimeout(() => {
         setGameState("setup");
         setSelectedZones([]);
         setKeeperZones([]);
-        setShotScenario(null);
-      }, 3000);
+      }, 2500);
       return () => clearTimeout(timer);
     }
   }, [gameState]);
-
-  // ── Physics animation complete ───────────────────────────────────────────────
-  const handlePhysicsComplete = useCallback((result: "goal" | "saved" | "missed") => {
-    setShotScenario(null);
-    setGameState(result);
-    if (result === "goal") {
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ["#ccff00", "#00ffff", "#ffffff"] });
-    }
-  }, []);
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
@@ -89,64 +76,70 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
     setGameState("kicking");
 
     try {
-      // 1. Randomly pick 2 keeper dive zones
-      const allZones = [0, 1, 2, 3, 4, 5];
+      // 1. Randomly select 2 dive zones for the keeper
+      const zones = [0, 1, 2, 3, 4, 5];
       const dives: number[] = [];
       while (dives.length < 2) {
-        const rand = allZones[Math.floor(Math.random() * allZones.length)];
+        const rand = zones[Math.floor(Math.random() * zones.length)];
         if (!dives.includes(rand)) dives.push(rand);
       }
       setKeeperZones(dives);
 
+      // Evaluate shot: Win if NONE of the selected zones are in the keeper zones
       const isLoss = selectedZones.some(z => dives.includes(z));
       const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
-      const winAmount = (parseFloat(wager) * 2.0).toFixed(2);
 
       if (isLoss) {
+        // Player Lost
         const tx = new TransferTransaction()
           .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
           .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
           .setTransactionMemo("Penalty Pro Loss");
+
         const res = await executeTransaction(tx);
         if (!res) throw new Error("Transaction rejected");
+        
         setIsProcessing(false);
-
-        // 70% keeper save, 30% woodwork miss
-        const useMiss = Math.random() < 0.30;
-        const wrongZone = allZones.find(z => !selectedZones.includes(z)) ?? 1;
-        setShotScenario({
-          type: useMiss ? "MISS" : "SAVE",
-          targetZoneId: selectedZones[0],
-          keeperZoneId: useMiss ? wrongZone : (dives.find(d => selectedZones.includes(d)) ?? dives[0]),
-        });
-        setGameState("animating");
+        setGameState("saved");
       } else {
+        // Player Won -> 2.0x Multiplier
+        const winAmount = (parseFloat(wager) * 2.0).toFixed(2);
         setLastWinAmount(winAmount);
+
+        // Pre-game transfer
         const tx = new TransferTransaction()
           .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
           .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Penalty Pro Win");
+          .setTransactionMemo("Penalty Pro Win - Verifying...");
+
         const res = await executeTransaction(tx);
         if (!res) throw new Error("Transaction rejected");
+
+        // Immediate UI Reveal — unblock the button and show Goal
         setIsProcessing(false);
+        setGameState("goal");
 
-        // Keeper dives to a wrong zone, ball goes to user's zone
-        const wrongZone = allZones.find(z => !selectedZones.includes(z)) ?? dives[0];
-        setShotScenario({
-          type: "WIN",
-          targetZoneId: selectedZones[0],
-          keeperZoneId: wrongZone,
-        });
-        setGameState("animating");
-
-        // Payout non-blocking
+        // Payout (non-blocking, don't await)
         fetch("/api/payout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountId, winAmount, wagerAmount: wager, direction: "GAME_WIN" }),
+          body: JSON.stringify({ 
+            accountId, 
+            winAmount,
+            wagerAmount: wager,
+            direction: 'GAME_WIN'
+          })
         })
-          .then(async r => { if (!r.ok) console.error("Payout failed:", await r.text()); })
-          .catch(err => console.error("Payout API error:", err));
+        .then(async (payoutRes) => {
+          if (!payoutRes.ok) console.error("Payout failed:", await payoutRes.text());
+        })
+        .catch(err => console.error("Payout API error:", err));
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#ccff00', '#00ffff', '#ffffff']
+        });
       }
       
       [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
@@ -170,6 +163,22 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
       exit={{ opacity: 0, scale: 0.95, y: 20 }}
       className="relative w-full max-w-6xl h-[85vh] flex bg-wager-charcoal/90 backdrop-blur-3xl rounded-[3rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] border border-white/10"
     >
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+        <button 
+          onClick={onClose}
+          className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <button
+          onClick={() => { onClose(); window.location.hash = "penalty-shootout"; }}
+          className="flex items-center gap-2 px-4 py-2 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/70 hover:text-white text-sm font-bold uppercase tracking-wider"
+        >
+          <HelpCircle size={16} />
+          How to Play
+        </button>
+      </div>
+
       {/* Left Pane: Pro Controls */}
       <div className="w-80 bg-wager-black/70 border-r border-white/5 p-8 flex flex-col justify-between relative z-50">
         <div>
@@ -296,14 +305,11 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
                 </div>
               </motion.div>
             )}
-            {gameState === "animating" && (
-              <motion.div key="animating" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <h2 className="text-3xl font-black text-white/40 uppercase tracking-[0.4em] animate-pulse">IN FLIGHT...</h2>
-              </motion.div>
-            )}
             {gameState === "goal" && (
               <motion.div key="goal" initial={{ scale: 0.5, rotate: -10 }} animate={{ scale: 1, rotate: 0 }} className="relative">
-                <h2 className="text-8xl font-black text-wager-lime uppercase tracking-widest drop-shadow-[0_0_40px_rgba(204,255,0,0.8)] italic">GOAL!!!</h2>
+                <h2 className="text-8xl font-black text-wager-lime uppercase tracking-widest drop-shadow-[0_0_40px_rgba(204,255,0,0.8)] italic">
+                  GOAL!!!
+                </h2>
                 <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="text-wager-cyan font-mono font-bold mt-2 text-2xl tracking-widest">
                   + {lastWinAmount} $WAGER
                 </motion.div>
@@ -311,14 +317,10 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
             )}
             {gameState === "saved" && (
               <motion.div key="saved" initial={{ scale: 1.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <h2 className="text-8xl font-black text-wager-red uppercase tracking-widest drop-shadow-[0_0_40px_rgba(255,0,0,0.6)] italic">SAVED!</h2>
+                <h2 className="text-8xl font-black text-wager-red uppercase tracking-widest drop-shadow-[0_0_40px_rgba(255,0,0,0.6)] italic">
+                  SAVED!
+                </h2>
                 <p className="text-zinc-500 font-bold tracking-widest mt-2 uppercase">Better luck next time, rookie.</p>
-              </motion.div>
-            )}
-            {gameState === "missed" && (
-              <motion.div key="missed" initial={{ scale: 1.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <h2 className="text-8xl font-black text-orange-400 uppercase tracking-widest drop-shadow-[0_0_40px_rgba(251,146,60,0.6)] italic">OFF TARGET!</h2>
-                <p className="text-zinc-500 font-bold tracking-widest mt-2 uppercase">Hit the woodwork.</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -327,21 +329,46 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         {/* The Professional Goal */}
         <div className="relative w-full max-w-5xl aspect-[2.4/1] z-10">
           {/* Goal Frame */}
-          <div className="absolute inset-0 border-[10px] border-zinc-100 rounded-t-2xl shadow-[0_0_60px_rgba(255,255,255,0.15)] z-50 pointer-events-none">
+          <div className="absolute inset-0 border-[10px] border-zinc-100 rounded-t-2xl shadow-[0_0_60px_rgba(255,255,255,0.15)] z-40 pointer-events-none">
             <div className="absolute -bottom-10 -left-[10px] w-8 h-20 bg-zinc-200 rounded-b-lg" />
             <div className="absolute -bottom-10 -right-[10px] w-8 h-20 bg-zinc-200 rounded-b-lg" />
           </div>
 
-          {/* Goal Net background + always-visible idle keeper */}
-          <IdleKeeperCanvas visible={gameState === "setup" || gameState === "kicking"} />
-
-          {/* matter-js Physics Canvas — mounts when transaction resolves */}
-          {gameState === "animating" && shotScenario && (
-            <PenaltyPhysicsCanvas
-              scenario={shotScenario}
-              onComplete={handlePhysicsComplete}
-            />
-          )}
+          {/* Goal Net */}
+          <div className="absolute inset-0 bg-white/5 overflow-hidden rounded-t-xl">
+             <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(#fff 2px, transparent 2px), linear-gradient(90deg, #fff 2px, transparent 2px)", backgroundSize: "25px 25px" }} />
+             
+             {/* The Keeper Figure */}
+             <motion.div 
+               animate={
+                 gameState === "kicking" ? { 
+                   x: keeperZones[0] === 0 || keeperZones[0] === 3 ? -150 : keeperZones[0] === 2 || keeperZones[0] === 5 ? 150 : 0,
+                   y: keeperZones[0] < 3 ? -50 : 50,
+                   rotate: keeperZones[0] === 0 || keeperZones[0] === 3 ? -30 : keeperZones[0] === 2 || keeperZones[0] === 5 ? 30 : 0,
+                   scale: 1.1
+                 } : 
+                 gameState === "saved" || gameState === "goal" ? {
+                   x: keeperZones[0] === 0 || keeperZones[0] === 3 ? -250 : keeperZones[0] === 2 || keeperZones[0] === 5 ? 250 : 0,
+                   y: keeperZones[0] < 3 ? -80 : 80,
+                   rotate: keeperZones[0] === 0 || keeperZones[0] === 3 ? -90 : keeperZones[0] === 2 || keeperZones[0] === 5 ? 90 : 0,
+                   opacity: 0.8
+                 } : 
+                 { x: 0, y: 0, rotate: 0, scale: 1 }
+               }
+               className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-56 flex flex-col items-center z-30 transition-all duration-700"
+             >
+                {/* Keeper Body */}
+                <div className="w-16 h-16 bg-wager-cyan rounded-full border-4 border-zinc-900 shadow-xl" />
+                <div className="w-24 h-32 bg-zinc-100 rounded-t-3xl border-x-4 border-t-4 border-zinc-900 relative">
+                   <div className="absolute -left-8 top-0 w-8 h-24 bg-zinc-200 rounded-full origin-top rotate-12" />
+                   <div className="absolute -right-8 top-0 w-8 h-24 bg-zinc-200 rounded-full origin-top -rotate-12" />
+                </div>
+                <div className="flex gap-4">
+                   <div className="w-8 h-20 bg-zinc-800 rounded-b-xl" />
+                   <div className="w-8 h-20 bg-zinc-800 rounded-b-xl" />
+                </div>
+             </motion.div>
+          </div>
 
           {/* Interactive Zone Grid */}
           <div className="absolute inset-0 grid grid-cols-3 grid-rows-2 gap-3 p-4 z-50">
@@ -410,29 +437,36 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
           </div>
         </div>
 
-        {/* The Ball — hidden once physics canvas takes over */}
-        {(gameState === "setup" || gameState === "kicking") && (
-          <div className="mt-12 relative z-50">
-            <motion.div
-              animate={
-                gameState === "setup" ? { y: [0, -4, 0], scale: 1 } :
-                { scale: [1, 0.3], opacity: [1, 0], transition: { duration: 0.25 } }
-              }
-              className="w-20 h-20 bg-white rounded-full shadow-[0_15px_30px_rgba(0,0,0,0.6)] flex items-center justify-center border-4 border-zinc-300 relative overflow-hidden"
-            >
-              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(#000 3px, transparent 0)", backgroundSize: "15px 15px" }} />
-              <div className="w-10 h-10 border-2 border-zinc-900/10 rounded-full" />
-            </motion.div>
-            {gameState === "setup" && (
-              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-16 h-3 bg-black/40 blur-md rounded-full" />
-            )}
-          </div>
-        )}
+        {/* The Ball */}
+        <div className="mt-12 relative z-50">
+          <motion.div
+            animate={
+              gameState === "setup" ? { y: [0, -4, 0], scale: 1 } :
+              gameState === "kicking" ? { 
+                scale: [1, 0.4, 0.15], 
+                y: -300, 
+                x: selectedZones[0] === 0 || selectedZones[0] === 3 ? -200 : selectedZones[0] === 2 || selectedZones[0] === 5 ? 200 : 0,
+                rotate: 720,
+                opacity: [1, 1, 0] 
+              } :
+              { opacity: 0, scale: 0 }
+            }
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="w-20 h-20 bg-white rounded-full shadow-[0_15px_30px_rgba(0,0,0,0.6)] flex items-center justify-center border-4 border-zinc-300 relative overflow-hidden"
+          >
+             {/* Soccer Ball Pattern */}
+             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(#000 3px, transparent 0)", backgroundSize: "15px 15px" }} />
+             <div className="w-10 h-10 border-2 border-zinc-900/10 rounded-full" />
+          </motion.div>
+          {gameState === "setup" && (
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-16 h-3 bg-black/40 blur-md rounded-full" />
+          )}
+        </div>
 
         {/* Action Button - Replay */}
         <AnimatePresence>
-          {(gameState === "goal" || gameState === "saved" || gameState === "missed") && (
-            <motion.div
+          {(gameState === "goal" || gameState === "saved") && (
+            <motion.div 
               initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }}
               className="mt-12 z-[60]"
             >
@@ -441,7 +475,6 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
                   setGameState("setup");
                   setSelectedZones([]);
                   setKeeperZones([]);
-                  setShotScenario(null);
                 }}
                 className="bg-white text-black font-black uppercase tracking-[0.2em] px-16 py-6 rounded-2xl hover:bg-wager-lime hover:scale-105 active:scale-95 transition-all text-2xl shadow-2xl"
               >

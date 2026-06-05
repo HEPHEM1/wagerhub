@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Play, Link as LinkIcon, AlertCircle, RefreshCw, Layers, ShieldAlert } from "lucide-react";
+import { X, Play, Link as LinkIcon, AlertCircle, RefreshCw, Layers, ShieldAlert, ArrowLeft, HelpCircle } from "lucide-react";
 import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 import { useWalletContext } from "../context/WalletContext";
@@ -207,6 +207,22 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       exit={{ opacity: 0, scale: 0.95, y: 20 }}
       className="relative w-full max-w-6xl h-[85vh] flex bg-wager-charcoal/90 backdrop-blur-3xl rounded-[3rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] border border-white/10"
     >
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+        <button 
+          onClick={onClose}
+          className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <button
+          onClick={() => { onClose(); window.location.hash = "gravity-drop"; }}
+          className="flex items-center gap-2 px-4 py-2 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/70 hover:text-white text-sm font-bold uppercase tracking-wider"
+        >
+          <HelpCircle size={16} />
+          How to Play
+        </button>
+      </div>
+
       {/* Dynamic Flash Overlay */}
       <AnimatePresence>
         {gameResult && (
