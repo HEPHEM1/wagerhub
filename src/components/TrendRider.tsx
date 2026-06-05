@@ -45,6 +45,10 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
   const [winStatus, setWinStatus] = useState<"WIN" | "LOSS" | "LIQUIDATED" | null>(null);
   const [finalPayout, setFinalPayout] = useState(0);
 
+  // Suspense Curve State
+  const [isChartFrozen, setIsChartFrozen] = useState(false);
+  const [tensionState, setTensionState] = useState<"NONE" | "DANGER" | "PROFIT">("NONE");
+
   const tickRef = useRef<NodeJS.Timeout | null>(null);
   const candleRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,13 +69,15 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (gameState === "resolved") return;
+    if (gameState === "resolved" || isChartFrozen) return;
 
-    // Fast Ticks for High Volatility Action
-    const tickInterval = 50; 
+    // Phase 1 (Secs 5-3): Extreme Volatility. Phase 2 (Secs 2-0): Heartbeat Drop
+    const isPhase1 = timeLeft > 2;
+    const tickInterval = gameState === "active" ? (isPhase1 ? 50 : 300) : 50;
+
     tickRef.current = setInterval(() => {
       setCurrentPrice((prevPrice) => {
-        const volatility = gameState === "active" ? 150 : 30; // Massive volatility when active
+        const volatility = gameState === "active" ? (isPhase1 ? 150 : 60) : 30; // Massive volatility vs heavy thumps
         const change = (Math.random() - 0.5) * volatility;
         
         // Massive random spikes
@@ -80,7 +86,30 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
         
         const newPrice = prevPrice + change + spikeAmount;
 
-        if (gameState === "active" && Math.abs(change + spikeAmount) > volatility * 2) {
+        // Proximity Tension Effects
+        if (gameState === "active" && entryPrice) {
+          let dangerDist = Infinity;
+          let profitDist = Infinity;
+
+          if (stopLoss) {
+            dangerDist = Math.abs(newPrice - parseFloat(stopLoss));
+            if (dangerDist < Math.abs(entryPrice - parseFloat(stopLoss)) * 0.15) {
+              setTensionState("DANGER");
+              setShake(true);
+              setTimeout(() => setShake(false), 200);
+            }
+          }
+          if (takeProfit) {
+            profitDist = Math.abs(newPrice - parseFloat(takeProfit));
+            if (profitDist < Math.abs(entryPrice - parseFloat(takeProfit)) * 0.15) {
+              setTensionState("PROFIT");
+            }
+          }
+          
+          if (dangerDist >= Math.abs(entryPrice - (parseFloat(stopLoss)||0)) * 0.15 && profitDist >= Math.abs(entryPrice - (parseFloat(takeProfit)||0)) * 0.15) {
+             setTensionState("NONE");
+          }
+        } else if (gameState === "active" && Math.abs(change + spikeAmount) > volatility * 2) {
           setShake(true);
           setTimeout(() => setShake(false), 200);
         }
@@ -140,7 +169,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
     }, tickInterval);
 
     // Candle Push Engine
-    const candleInterval = gameState === "active" ? 250 : 1000; // Hyper fast candles during 5s window
+    const candleInterval = gameState === "active" ? (isPhase1 ? 250 : 1200) : 1000;
     candleRef.current = setInterval(() => {
       setCandleHistory((prev) => {
         const last = prev[prev.length - 1];
@@ -160,17 +189,18 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       if (tickRef.current) clearInterval(tickRef.current);
       if (candleRef.current) clearInterval(candleRef.current);
     };
-  }, [gameState, entryPrice, prediction, takeProfit, stopLoss]);
+  }, [gameState, isChartFrozen, timeLeft, entryPrice, prediction, takeProfit, stopLoss]);
 
   // --- Countdown Timer ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (gameState === "active" && timeLeft > 0) {
+    if (gameState === "active" && !isChartFrozen && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
-    } else if (gameState === "active" && timeLeft <= 0) {
+    } else if (gameState === "active" && !isChartFrozen && timeLeft <= 0) {
       // 5 Seconds Expired - Resolve based on current position
+      setIsChartFrozen(true);
       const finalMult = pnlMultiplier;
       if (finalMult > 1) {
         resolveTrade("WIN", currentPrice, finalMult);
@@ -179,7 +209,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       }
     }
     return () => clearInterval(timer);
-  }, [gameState, timeLeft, pnlMultiplier, currentPrice]);
+  }, [gameState, timeLeft, isChartFrozen, pnlMultiplier, currentPrice]);
 
   const handleQuickSelect = (percent: string) => {
     const total = parseFloat(balances.wager);
@@ -203,6 +233,10 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
     setTxError(null);
     setPrediction(dir);
 
+    // Freeze chart immediately and set entry price so blue line appears!
+    setEntryPrice(currentPrice);
+    setIsChartFrozen(true);
+
     try {
       const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
       
@@ -215,14 +249,16 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       if (!res) throw new Error("Transaction rejected");
 
       // Transaction Success - Start Game immediately
-      setEntryPrice(currentPrice);
       setGameState("active");
       setTimeLeft(5); // Exactly 5 seconds
       setPnlMultiplier(1.0);
+      setIsChartFrozen(false);
     } catch (err: any) {
       const msg = err?.message || "Transaction failed. Check your wallet.";
       setTxError(msg);
       setPrediction(null);
+      setEntryPrice(null);
+      setIsChartFrozen(false);
     } finally {
       setIsProcessing(false);
     }
@@ -267,6 +303,8 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       setPrediction(null);
       setTimeLeft(5);
       setPnlMultiplier(1.0);
+      setIsChartFrozen(false);
+      setTensionState("NONE");
     }, 4000);
   };
 
@@ -294,13 +332,18 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
   const isCurrentlyWinning = prediction === "LONG" ? currentPrice > (entryPrice || 0) : currentPrice < (entryPrice || 0);
   const pulseColor = isCurrentlyWinning ? "rgba(0, 255, 255, 0.2)" : "rgba(255, 0, 0, 0.2)";
 
+  let boxS = gameState === "active" ? `inset 0 0 50px ${pulseColor}` : "";
+  if (tensionState === "DANGER") {
+    boxS = `inset 0 0 150px rgba(255,0,0,0.8)`;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: 20 }}
       className={`relative w-full max-w-7xl h-[90vh] flex flex-col md:flex-row bg-wager-charcoal/90 backdrop-blur-3xl rounded-[3rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] border border-white/10 ${shake ? "animate-shake" : ""}`}
-      style={{ boxShadow: gameState === "active" ? `inset 0 0 50px ${pulseColor}` : "" }}
+      style={{ boxShadow: boxS, transition: "box-shadow 0.3s ease-in-out" }}
     >
       <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
         <button 
@@ -392,7 +435,10 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
 
               const bodyTop = Math.min(openY, closeY);
               const bodyHeight = Math.max(Math.abs(closeY - openY), 1); // min 1px height
-              const center = x + (candleWidth * 0.8) / 2;
+              const isLast = i === visibleCandles.length - 1;
+              const glow = isLast && tensionState === "PROFIT" 
+                ? "drop-shadow-[0_0_20px_rgba(0,255,0,1)]" 
+                : "drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]";
 
               return (
                 <g key={c.id}>
@@ -405,14 +451,14 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
                     width={candleWidth * 0.8} 
                     height={bodyHeight} 
                     fill={color} 
-                    className="drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]"
+                    className={glow}
                   />
                 </g>
               );
             })}
 
             {/* Target Lines */}
-            {gameState === "active" && entryPrice !== null && (
+            {(gameState === "active" || isProcessing) && entryPrice !== null && (
               <>
                 {/* Entry Price Line */}
                 <line 
