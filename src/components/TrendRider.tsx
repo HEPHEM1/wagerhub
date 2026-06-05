@@ -435,6 +435,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
 
               const bodyTop = Math.min(openY, closeY);
               const bodyHeight = Math.max(Math.abs(closeY - openY), 1); // min 1px height
+              const center = x + (candleWidth * 0.8) / 2;
               const isLast = i === visibleCandles.length - 1;
               const glow = isLast && tensionState === "PROFIT" 
                 ? "drop-shadow-[0_0_20px_rgba(0,255,0,1)]" 
