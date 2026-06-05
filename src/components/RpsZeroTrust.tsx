@@ -158,7 +158,7 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
         />
       )}
 
-      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
         <button 
           onClick={onClose}
           className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"

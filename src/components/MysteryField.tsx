@@ -219,7 +219,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         gameState === "bust" ? "border-wager-red/50 shadow-[0_0_50px_rgba(255,0,0,0.2)]" : "border-wager-cyan/20"
       }`}
     >
-      <div className="absolute top-6 left-6 z-50 flex items-center gap-4">
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
         <button 
           onClick={onClose}
           className="p-3 bg-wager-black/50 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/50 hover:text-white"
