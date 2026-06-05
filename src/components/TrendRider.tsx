@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, TrendingDown, Coins, Loader2, ArrowLeft } from "lucide-react";
 import { useWalletContext } from "../context/WalletContext";
-import { TransferTransaction } from "@hashgraph/sdk";
+import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
-const WAGER_TOKEN_ID = "0.0.4851214";
-const TREASURY_ACCOUNT_ID = "0.0.4850720";
+const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
+const WAGER_TOKEN_ID = TokenId.fromString((process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim());
 
 export default function TrendRider({ onBack }: { onBack: () => void }) {
   const { isConnected, accountId, balances, executeTransaction, connect } = useWalletContext();
