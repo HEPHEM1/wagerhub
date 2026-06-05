@@ -16,10 +16,6 @@ export default function Home() {
   const [hasEntered, setHasEntered] = useState(false);
   const [activeView, setActiveView] = useState<ViewState>("swap");
 
-  if (!hasEntered) {
-    return <LandingPage onEnter={() => setHasEntered(true)} />;
-  }
-
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
@@ -36,6 +32,10 @@ export default function Home() {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
+
+  if (!hasEntered) {
+    return <LandingPage onEnter={() => setHasEntered(true)} />;
+  }
 
   return (
     <>
