@@ -231,7 +231,7 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
              {resultType === "win" ? (
                <motion.div initial={{ scale: 0.5 }} animate={{ scale: 1 }} className="flex flex-col items-center gap-6">
                   <Sparkles size={120} className={selectedPath === "blessed" ? "text-wager-cyan" : "text-purple-500"} />
-                  <h1 className="text-9xl font-black text-white uppercase italic tracking-widest drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]">GOAL!!!</h1>
+                  <h1 className="text-9xl font-black text-white uppercase italic tracking-widest drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]">JACKPOT!!!</h1>
                   <div className="bg-wager-lime text-black px-12 py-4 rounded-full font-black text-4xl shadow-2xl">
                     + {payoutAmount} $WAGER
                   </div>
