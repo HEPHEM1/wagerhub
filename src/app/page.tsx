@@ -20,9 +20,19 @@ export default function Home() {
     const handleHashChange = () => {
       const hash = window.location.hash;
       const gameIds = ["#wager-swap", "#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
+      
       if (gameIds.includes(hash)) {
         setActiveView("about");
-        // The About component's own useEffect will handle the scrolling once it mounts
+      } else if (hash === "#arcade") {
+        setActiveView("arcade");
+      } else if (hash === "#leaderboard") {
+        setActiveView("leaderboard");
+      } else if (hash === "#about") {
+        setActiveView("about");
+      } else if (hash === "#swap" || hash === "") {
+        // Default or explicitly swap
+        // Only set to swap if we already entered, or if the hash is explicitly swap
+        if (hash === "#swap") setActiveView("swap");
       }
     };
 
