@@ -8,6 +8,7 @@ import PenaltyShootoutPro from "./PenaltyShootoutPro";
 import MysteryField from "./MysteryField";
 import RpsZeroTrust from "./RpsZeroTrust";
 import GravityDrop from "./GravityDrop";
+import TrendRider from "./TrendRider";
 
 export default function ArcadeFloor() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -57,6 +58,13 @@ export default function ArcadeFloor() {
       color: "bg-orange-500/10 border-orange-500/30",
       backgroundImage: "bg-[url('/GD.jpg')]",
       overlayClass: "from-black/95 via-black/50 to-transparent",
+    },
+    {
+      id: "trend-rider",
+      title: "Trend Rider",
+      description: "Live market prediction. Fast-paced trading.",
+      icon: <Target size={48} className="text-wager-cyan" />,
+      color: "bg-wager-cyan/10 border-wager-cyan/30",
     },
     {
       id: "degen-dice",
@@ -131,6 +139,9 @@ export default function ArcadeFloor() {
             )}
             {activeGame === "gravity-drop" && (
               <GravityDrop onClose={() => setActiveGame(null)} />
+            )}
+            {activeGame === "trend-rider" && (
+              <TrendRider onBack={() => setActiveGame(null)} />
             )}
           </motion.div>
         )}
