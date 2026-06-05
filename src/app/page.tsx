@@ -7,6 +7,7 @@ import Leaderboard from "@/components/Leaderboard";
 import Wagerswap from "@/components/Wagerswap";
 import Header from "@/components/Header";
 import About from "@/components/About";
+import LandingPage from "@/components/LandingPage";
 import { Gamepad2, ArrowRightLeft, TrendingUp, HelpCircle } from "lucide-react";
 
 type ViewState = "arcade" | "swap" | "leaderboard" | "about";
