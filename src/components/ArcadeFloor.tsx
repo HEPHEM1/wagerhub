@@ -65,6 +65,8 @@ export default function ArcadeFloor() {
       description: "Live market prediction. Fast-paced trading.",
       icon: <Target size={48} className="text-wager-cyan" />,
       color: "bg-wager-cyan/10 border-wager-cyan/30",
+      backgroundImage: "bg-[url('/Trend%20rider.jpg')]",
+      overlayClass: "from-black/95 via-black/50 to-transparent",
     },
     {
       id: "degen-dice",
