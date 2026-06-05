@@ -15,6 +15,8 @@ import {
   TokenId,
   AccountId,
   Hbar,
+  TransactionId,
+  Transaction,
 } from "@hashgraph/sdk";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -184,9 +186,21 @@ export default function Wagerswap() {
         // Use native TokenAssociateTransaction via the WalletConnect signer.
         // TokenId.fromString() is used here — NOT fromSolidityAddress() — to
         // avoid INVALID_TOKEN_ID errors on the Hedera network.
-        const associateTx = new TokenAssociateTransaction()
+        // BUG FIX: Explicitly freeze and convert to bytes before sending to 
+        // HashConnect v3 to prevent '(BUG) body.data was not set in the protobuf'
+        const rawAssociateTx = new TokenAssociateTransaction()
           .setAccountId(AccountId.fromString(accountId))
-          .setTokenIds([TokenId.fromString(WAGER_TOKEN_ID_STRING)]);
+          .setTokenIds([TokenId.fromString(WAGER_TOKEN_ID_STRING)])
+          .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+          .setNodeAccountIds([
+            AccountId.fromString("0.0.3"),
+            AccountId.fromString("0.0.4"),
+            AccountId.fromString("0.0.5")
+          ])
+          .freeze();
+
+        const txBytes = rawAssociateTx.toBytes();
+        const associateTx = Transaction.fromBytes(txBytes);
 
         const assocTxId = await executeTransaction(associateTx);
         if (!assocTxId) {
