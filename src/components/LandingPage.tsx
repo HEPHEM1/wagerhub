@@ -6,7 +6,7 @@ import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadFull } from "tsparticles";
 import { 
   Lock, ArrowRightLeft, TrendingUp, Crosshair, 
-  ChevronDown, Gamepad2, HelpCircle, Github, MessageSquare, Link as LinkIcon 
+  ChevronDown, Gamepad2, HelpCircle, Globe, Mail, Link as LinkIcon 
 } from "lucide-react";
 
 const bentoContainerVariants: Variants = {
@@ -432,10 +432,10 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
             <h4 className="text-white font-black uppercase tracking-widest mb-6">Community</h4>
             <div className="flex gap-4">
               <a href="#" className="p-3 bg-white/5 border border-white/10 rounded-full hover:bg-white/20 hover:border-white hover:text-white transition-all text-zinc-400">
-                <Github size={24} />
+                <Globe size={24} />
               </a>
               <a href="#" className="p-3 bg-white/5 border border-white/10 rounded-full hover:bg-[#0088cc]/20 hover:border-[#0088cc] hover:text-[#0088cc] transition-all text-zinc-400">
-                <MessageSquare size={24} />
+                <Mail size={24} />
               </a>
               <a href="#" className="p-3 bg-white/5 border border-white/10 rounded-full hover:bg-[#5865F2]/20 hover:border-[#5865F2] hover:text-[#5865F2] transition-all text-zinc-400">
                 <LinkIcon size={24} />
