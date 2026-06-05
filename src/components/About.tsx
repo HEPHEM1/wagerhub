@@ -138,7 +138,7 @@ export default function About() {
           </p>
           <ul className="list-disc pl-5 space-y-2">
             <li><strong className="text-white">How to Play:</strong> Select Rock, Paper, or Scissors and lock your wager.</li>
-            <li><strong className="text-white">Provably Fair:</strong> The opponent's move is generated randomly. Standard RPS rules apply (Rock > Scissors > Paper > Rock).</li>
+            <li><strong className="text-white">Provably Fair:</strong> The opponent's move is generated randomly. Standard RPS rules apply (Rock &gt; Scissors &gt; Paper &gt; Rock).</li>
             <li><strong className="text-white">Resolution:</strong> Win to double your wager, lose to forfeit, or draw to get your wager refunded.</li>
           </ul>
         </div>
