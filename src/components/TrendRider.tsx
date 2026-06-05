@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, TrendingDown, Coins, Loader2, ArrowLeft } from "lucide-react";
-import { useWallet } from "../context/WalletContext";
+import { useWalletContext } from "../context/WalletContext";
 import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
@@ -11,7 +11,7 @@ const WAGER_TOKEN_ID = "0.0.4851214";
 const TREASURY_ACCOUNT_ID = "0.0.4850720";
 
 export default function TrendRider({ onBack }: { onBack: () => void }) {
-  const { isConnected, accountId, balances, executeTransaction, connect } = useWallet();
+  const { isConnected, accountId, balances, executeTransaction, connect } = useWalletContext();
 
   // Core Game State
   const [gameState, setGameState] = useState<"idle" | "active" | "resolved">("idle");
