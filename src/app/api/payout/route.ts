@@ -10,10 +10,10 @@ import {
 
 export async function POST(req: Request) {
   try {
-    const { accountId, hbarAmount, winAmount, wagerAmount, direction, transactionId } = await req.json();
+    const { accountId, hbarAmount, winAmount, wagerAmount, direction, transactionId, receiveTokenId, receiveAmountStr } = await req.json();
 
-    if (!accountId || (!hbarAmount && !winAmount && !wagerAmount)) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!accountId) {
+      return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
     }
 
     const operatorId = (process.env.HEDERA_OPERATOR_ID || "").trim();
@@ -38,87 +38,42 @@ export async function POST(req: Request) {
     let tx: TransferTransaction;
     let memo = "WagerHub Payout";
 
-    // ─── Case 1: Reverse Swap (WAGER -> HBAR) ──────────────────────────────
-    if (direction === 'WAGER_TO_HBAR') {
-      console.log(`[Payout API] Verifying WAGER -> HBAR Swap for ${accountId}...`);
-
-      if (!wagerAmount) throw new Error("Wager amount missing for reverse swap");
-      if (!transactionId) throw new Error("Transaction ID missing for verification");
-
-      // Hedera Mirror Nodes require transaction IDs to be formatted as account-timestamp (e.g. 0.0.123-17123-456)
-      // We must preserve the dots in the Account ID but replace the '@' and timestamp dot with hyphens
-      const parts = transactionId.split('@');
-      const accountIdPart = parts[0]; 
-      const timestampPart = parts[1].replace('.', '-'); 
-      const formattedTxId = `${accountIdPart}-${timestampPart}`;
+    // ─── Universal Swap Logic ─────────────────────────────────────────────
+    if (receiveTokenId && receiveAmountStr) {
+      // Dynamic route requested by frontend
+      const amt = parseFloat(receiveAmountStr);
+      let isNative = false;
+      let memoStr = `WagerHub Swap Payout`;
+      let decimals = 8;
       
-      // Verify the Treasury received the $WAGER from the user via Mirror Node
-      // We query the specific transaction ID to ensure we are verifying the correct swap
-      const verifyUrl = `https://testnet.mirrornode.hedera.com/api/v1/transactions/${formattedTxId}`;
-      
-      let latestTx = null;
-      let attempts = 5;
-      
-      while (attempts > 0 && !latestTx) {
-        console.log(`[Payout API] Querying Mirror Node (Attempt ${6 - attempts}): ${verifyUrl}`);
-        const verifyRes = await fetch(verifyUrl);
-        
-        if (verifyRes.ok) {
-          const verifyData = await verifyRes.json();
-          latestTx = verifyData.transactions?.[0];
-        }
-
-        if (!latestTx) {
-          attempts--;
-          if (attempts > 0) {
-            console.log(`[Payout API] Transaction not indexed yet. Retrying in 2.5s...`);
-            await new Promise(resolve => setTimeout(resolve, 2500));
-          }
-        }
+      if (receiveTokenId === "HBAR") {
+        isNative = true;
+      } else if (receiveTokenId === WAGER_TOKEN_ID) {
+        decimals = 8;
+      } else {
+        // USDT / USDC both use 6 decimals
+        decimals = 6;
       }
 
-      if (!latestTx) {
-        throw new Error(`Mirror Node query failed for Tx ${formattedTxId} after multiple attempts. Transaction might still be indexing.`);
-      }
-
-      // $WAGER has 8 decimals
-      const expectedTinyTokens = Math.floor(parseFloat(wagerAmount.toString()) * 1e8);
+      tx = new TransferTransaction();
       
-      // Look for the specific token transfer to our Treasury
-      const confirmedTransfer = latestTx.token_transfers?.find((t: any) => 
-        t.token_id === WAGER_TOKEN_ID && 
-        t.account === treasuryId && 
-        t.amount === expectedTinyTokens
-      );
-
-      if (!confirmedTransfer) {
-        console.error("[Payout API] Verification FAILED. Token transfer not found in tx history.");
-        console.log("[Payout API] Found transfers:", JSON.stringify(latestTx.token_transfers));
-        return NextResponse.json({ 
-          error: "Verification failed: Treasury did not receive the expected $WAGER amount.",
-          foundTransfers: latestTx.token_transfers
-        }, { status: 403 });
+      if (isNative) {
+        tx.addHbarTransfer(AccountId.fromString(treasuryId), new Hbar(amt).negated());
+        tx.addHbarTransfer(AccountId.fromString(accountId), new Hbar(amt));
+      } else {
+        const amountInTiny = Math.floor(amt * Math.pow(10, decimals));
+        tx.addTokenTransfer(TokenId.fromString(receiveTokenId), AccountId.fromString(treasuryId), -amountInTiny);
+        tx.addTokenTransfer(TokenId.fromString(receiveTokenId), AccountId.fromString(accountId), amountInTiny);
       }
-
-      // Calculate HBAR payout (100:1)
-      const hbarToPayout = parseFloat(wagerAmount.toString()) / 100;
-      memo = `WagerHub Reverse Swap: ${wagerAmount} $WAGER -> ${hbarToPayout} HBAR`;
-
-      tx = new TransferTransaction()
-        .addHbarTransfer(AccountId.fromString(treasuryId), new Hbar(hbarToPayout).negated())
-        .addHbarTransfer(AccountId.fromString(accountId), new Hbar(hbarToPayout))
-        .setTransactionMemo(memo);
+      tx.setTransactionMemo(memoStr);
     } 
-    // ─── Case 2: Standard Swap (HBAR -> WAGER) or Game Win ─────────────────
-    else {
-      // Enforce 1 HBAR = 100 $WAGER exchange rate (Secure Backend Logic)
+    // ─── Legacy Game Payouts (HBAR -> WAGER / Win Amount) ─────────────────
+    else if (winAmount || hbarAmount) {
       const calculatedWagerAmount = hbarAmount 
         ? parseFloat(hbarAmount.toString()) 
         : parseFloat(winAmount.toString());
 
       const finalWagerAmount = hbarAmount ? calculatedWagerAmount * 100 : calculatedWagerAmount;
-
-      // WAGER token has 8 decimals
       const amountInTokens = Math.floor(finalWagerAmount * 1e8);
       memo = hbarAmount ? "WagerHub Swap Payout" : "WagerHub Game Payout";
 
@@ -126,6 +81,18 @@ export async function POST(req: Request) {
         .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(treasuryId), -amountInTokens)
         .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(accountId), amountInTokens)
         .setTransactionMemo(memo);
+    }
+    // ─── Legacy Reverse Swap (WAGER -> HBAR) ──────────────────────────────
+    else if (direction === 'WAGER_TO_HBAR') {
+      const hbarToPayout = parseFloat(wagerAmount.toString()) / 100;
+      memo = `WagerHub Reverse Swap: ${wagerAmount} $WAGER -> ${hbarToPayout} HBAR`;
+
+      tx = new TransferTransaction()
+        .addHbarTransfer(AccountId.fromString(treasuryId), new Hbar(hbarToPayout).negated())
+        .addHbarTransfer(AccountId.fromString(accountId), new Hbar(hbarToPayout))
+        .setTransactionMemo(memo);
+    } else {
+      return NextResponse.json({ error: "Invalid payout parameters" }, { status: 400 });
     }
 
     console.log(`[Payout API] Executing: ${memo}`);

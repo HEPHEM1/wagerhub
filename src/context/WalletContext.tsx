@@ -19,6 +19,8 @@ const WC_PROJECT_ID = (
 ).trim();
 
 const WAGER_TOKEN_ID = "0.0.8818191";
+const USDT_TOKEN_ID = (process.env.NEXT_PUBLIC_USDT_TOKEN_ID || "0.0.12345").trim();
+const USDC_TOKEN_ID = (process.env.NEXT_PUBLIC_USDC_TOKEN_ID || "0.0.67890").trim();
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
 const appMetadata = {
@@ -34,6 +36,8 @@ const appMetadata = {
 export interface WalletBalances {
   hbar: string;
   wager: string;
+  usdt: string;
+  usdc: string;
 }
 
 export interface WalletContextValue {
@@ -55,7 +59,7 @@ export interface WalletContextValue {
 }
 
 // ─── Context defaults ─────────────────────────────────────────────────────────
-const defaultBalances: WalletBalances = { hbar: "0.00", wager: "0.00" };
+const defaultBalances: WalletBalances = { hbar: "0.00", wager: "0.00", usdt: "0.00", usdc: "0.00" };
 
 const WalletContext = createContext<WalletContextValue>({
   isConnected: false,
@@ -87,19 +91,19 @@ async function fetchHbarBalance(accountId: string): Promise<string> {
   }
 }
 
-async function fetchWagerBalance(accountId: string): Promise<string> {
+async function fetchTokenBalance(accountId: string, tokenId: string, expectedDecimals: number = 8): Promise<string> {
   try {
-    const url = `${MIRROR_NODE_BASE}/accounts/${accountId}/tokens?token.id=${WAGER_TOKEN_ID}&limit=1`;
+    const url = `${MIRROR_NODE_BASE}/accounts/${accountId}/tokens?token.id=${tokenId}&limit=1`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Mirror Node token HTTP ${res.status}`);
     const data = await res.json();
     const entry = data?.tokens?.[0];
     if (!entry) return "0.00";
     const raw: number = entry.balance ?? 0;
-    const decimals: number = entry.decimals ?? 8;
+    const decimals: number = entry.decimals ?? expectedDecimals;
     return (raw / Math.pow(10, decimals)).toFixed(2);
   } catch (e) {
-    console.warn("[WagerWallet] fetchWagerBalance error:", e);
+    console.warn(`[WagerWallet] fetchTokenBalance (${tokenId}) error:`, e);
     return "0.00";
   }
 }
@@ -299,11 +303,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setBalances(defaultBalances);
       return;
     }
-    const [h, w] = await Promise.all([
+    const [h, w, usdt, usdc] = await Promise.all([
       fetchHbarBalance(accountId),
-      fetchWagerBalance(accountId),
+      fetchTokenBalance(accountId, WAGER_TOKEN_ID, 8),
+      fetchTokenBalance(accountId, USDT_TOKEN_ID, 6),
+      fetchTokenBalance(accountId, USDC_TOKEN_ID, 6),
     ]);
-    setBalances({ hbar: h, wager: w });
+    setBalances({ hbar: h, wager: w, usdt, usdc });
   };
 
   const executeTransaction = async (

@@ -21,31 +21,23 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/**
- * Testnet $WAGER token ID in native Hedera shard.realm.num format.
- * Using TokenId.fromString() — fromSolidityAddress() caused INVALID_TOKEN_ID.
- */
 const WAGER_TOKEN_ID_STRING = "0.0.8818191";
 const WAGER_TOKEN_ID = TokenId.fromString(WAGER_TOKEN_ID_STRING);
 
-/**
- * SaucerSwap V2 Router contract on Hedera Testnet.
- * Replace with the live deployed contract ID before mainnet.
- */
-const SWAP_CONTRACT_ID = ContractId.fromString("0.0.1234567"); // TODO: replace with live router
+const USDT_TOKEN_ID_STRING = (process.env.NEXT_PUBLIC_USDT_TOKEN_ID || "0.0.12345").trim();
+const USDC_TOKEN_ID_STRING = (process.env.NEXT_PUBLIC_USDC_TOKEN_ID || "0.0.67890").trim();
 
-/** Gas limit for Hedera contract calls — must be set explicitly or the tx fails */
+const SWAP_CONTRACT_ID = ContractId.fromString("0.0.1234567"); // TODO: replace with live router
 const SWAP_GAS = 100_000;
 
-/** Hedera Testnet Mirror Node base URL */
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 const TREASURY_ID = (process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim();
 
 const TOKENS = [
-  { id: "HBAR", symbol: "HBAR", type: "native", icon: "ℏ" },
-  { id: "USDC", symbol: "USDC", type: "erc20", icon: "$" },
-  { id: "USDT", symbol: "USDT", type: "erc20", icon: "₮" },
-  { id: "WAGER", symbol: "$WAGER", type: "erc20", icon: "W" },
+  { id: "HBAR", symbol: "HBAR", type: "native", icon: "ℏ", decimals: 8, tokenId: "HBAR" },
+  { id: "USDC", symbol: "USDC", type: "erc20", icon: "$", decimals: 6, tokenId: USDC_TOKEN_ID_STRING },
+  { id: "USDT", symbol: "USDT", type: "erc20", icon: "₮", decimals: 6, tokenId: USDT_TOKEN_ID_STRING },
+  { id: "WAGER", symbol: "$WAGER", type: "erc20", icon: "W", decimals: 8, tokenId: WAGER_TOKEN_ID_STRING },
 ];
 
 export default function Wagerswap() {
@@ -58,12 +50,12 @@ export default function Wagerswap() {
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [slippage, setSlippage] = useState("0.5");
+  const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
   const { isConnected, accountId, balances, network, wagerCredits, addWagerCredits, executeTransaction, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
-  const [isHbarToWager, setIsHbarToWager] = useState(true);
 
   // ── Swap state ────────────────────────────────────────────────────────────────
   const [isApproved, setIsApproved] = useState(false);
@@ -78,54 +70,74 @@ export default function Wagerswap() {
     setIsApproved(false);
     setSwapError(null);
     setSwapStatus("idle");
-  }, [payToken]);
+  }, [payToken, receiveToken]);
 
-  // ── Conversion rates (Season 1: 1 HBAR = 100 $WAGER) ─────────────────────
+  // ── Oracle Mock (SaucerSwap) ────────────────────────────────────────────────
+  // Mock oracle rates relative to HBAR (how many of Token X equal 1 HBAR)
+  const ratesToHbar: Record<string, number> = {
+    "HBAR": 1,
+    "$WAGER": 100, // 1 HBAR = 100 WAGER
+    "USDC": 0.10,  // 1 HBAR = 0.10 USDC => 1 USDC = 10 HBAR
+    "USDT": 0.10   // 1 HBAR = 0.10 USDT => 1 USDT = 10 HBAR
+  };
+
+  useEffect(() => {
+    const updateRate = () => {
+      const pToH = 1 / ratesToHbar[payToken.symbol]; 
+      const hToR = ratesToHbar[receiveToken.symbol]; 
+      const rate = pToH * hToR;
+      setExchangeRate(rate.toFixed(4));
+    };
+    updateRate();
+    const interval = setInterval(updateRate, 5000); // Poll every 5s
+    return () => clearInterval(interval);
+  }, [payToken, receiveToken]);
+
   const getReceiveAmount = () => {
     if (!payAmount || isNaN(parseFloat(payAmount))) return "";
-    
-    // HBAR -> $WAGER (1:100)
-    if (isHbarToWager) {
-      return (parseFloat(payAmount) * 100).toFixed(2);
-    } 
-    // $WAGER -> HBAR (100:1)
-    else {
-      return (parseFloat(payAmount) / 100).toFixed(2);
-    }
+    const rate = parseFloat(exchangeRate);
+    return (parseFloat(payAmount) * rate).toFixed(2);
   };
 
   const receiveAmount = getReceiveAmount();
   const requiresApproval = payToken.type === "erc20" && payToken.symbol !== "$WAGER";
-  const isHopRequired = payToken.type === "erc20" && receiveToken.type === "erc20";
+  const isHopRequired = payToken.symbol !== "HBAR" && receiveToken.symbol !== "HBAR" && payToken.symbol !== receiveToken.symbol;
+
+  const getBalanceForToken = (symbol: string) => {
+    switch (symbol) {
+      case "HBAR": return balances.hbar || "0.00";
+      case "$WAGER": return balances.wager || "0.00";
+      case "USDT": return balances.usdt || "0.00";
+      case "USDC": return balances.usdc || "0.00";
+      default: return "0.00";
+    }
+  };
 
   const handleQuickSelect = (percent: string) => {
-    const hbarBalance = parseFloat(balances.hbar);
-    if (isNaN(hbarBalance) || hbarBalance <= 0) return;
+    const balString = getBalanceForToken(payToken.symbol);
+    const balance = parseFloat(balString);
+    if (isNaN(balance) || balance <= 0) return;
 
     let amount = 0;
     if (percent === 'MAX') {
-      amount = Math.max(0, hbarBalance - 1); // Gas buffer
+      amount = payToken.symbol === 'HBAR' ? Math.max(0, balance - 1) : balance;
     } else {
       const factor = parseInt(percent.replace('%', '')) / 100;
-      amount = hbarBalance * factor;
+      amount = balance * factor;
     }
     setPayAmount(amount.toFixed(2));
   };
 
   // ── Association check ─────────────────────────────────────────────────────────
-  /**
-   * Checks via Mirror Node whether the connected account is already associated
-   * with the $WAGER token. Returns true if associated, false if not.
-   */
-  const isWagerAssociated = async (accId: string): Promise<boolean> => {
+  const checkTokenAssociation = async (accId: string, tokenIdStr: string): Promise<boolean> => {
     try {
-      // Mirror Node requires native shard.realm.num format for token.id queries
-      const url = `${MIRROR_NODE_BASE}/accounts/${accId}/tokens?token.id=${WAGER_TOKEN_ID_STRING}&limit=1`;
+      if (tokenIdStr === "HBAR") return true;
+      const url = `${MIRROR_NODE_BASE}/accounts/${accId}/tokens?token.id=${tokenIdStr}&limit=1`;
       const res = await fetch(url);
       if (!res.ok) return false;
       const data = await res.json();
       const isAssociated = (data?.tokens?.length ?? 0) > 0;
-      console.log(`[Wagerswap] Association check for ${WAGER_TOKEN_ID_STRING}:`, isAssociated);
+      console.log(`[Wagerswap] Association check for ${tokenIdStr}:`, isAssociated);
       return isAssociated;
     } catch (e) {
       console.log("[Wagerswap] Association check error:", e);
@@ -134,14 +146,6 @@ export default function Wagerswap() {
   };
 
   // ── Main executeSwap ──────────────────────────────────────────────────────────
-  /**
-   * Full swap flow:
-   *   1. Guard: wallet connected + amount entered + network is testnet
-   *   2. Check: is account associated with $WAGER token?
-   *   3. If not → send TokenAssociateTransaction first
-   *   4. Build ContractExecuteTransaction with setGas(100_000)
-   *   5. Sign + execute via wallet; log any Hedera ResponseCode on failure
-   */
   const executeSwap = async () => {
     if (!isConnected || !accountId) {
       setSwapError("Connect your wallet first.");
@@ -163,8 +167,7 @@ export default function Wagerswap() {
     setIsProcessing(true);
 
     try {
-      // ── Step 1: ERC-20 approval (mock state for now — replace with
-      //            ContractExecuteTransaction calling approve() when ABI is ready)
+      // ── Step 1: ERC-20 approval
       if (requiresApproval && !isApproved) {
         setSwapStatus("associating");
         await new Promise((r) => setTimeout(r, 800)); // simulate approval round-trip
@@ -174,67 +177,54 @@ export default function Wagerswap() {
         return;
       }
 
-      // ── Step 2: Check $WAGER token association ──────────────────────────────
-      const associated = await isWagerAssociated(accountId);
+      // ── Step 2: Check token association
+      if (receiveToken.type === "erc20") {
+        const associated = await checkTokenAssociation(accountId, receiveToken.tokenId);
 
-      if (!associated && receiveToken.symbol === "$WAGER") {
-        setSwapStatus("associating");
-        console.log(
-          `[Wagerswap] Account not associated with $WAGER (${WAGER_TOKEN_ID_STRING}) — sending TokenAssociateTransaction`
-        );
+        if (!associated) {
+          setSwapStatus("associating");
+          console.log(`[Wagerswap] Account not associated with ${receiveToken.symbol} (${receiveToken.tokenId})`);
 
-        // Use native TokenAssociateTransaction via the WalletConnect signer.
-        // TokenId.fromString() is used here — NOT fromSolidityAddress() — to
-        // avoid INVALID_TOKEN_ID errors on the Hedera network.
-        // BUG FIX: Explicitly freeze and convert to bytes before sending to 
-        // HashConnect v3 to prevent '(BUG) body.data was not set in the protobuf'
-        const rawAssociateTx = new TokenAssociateTransaction()
-          .setAccountId(AccountId.fromString(accountId))
-          .setTokenIds([TokenId.fromString(WAGER_TOKEN_ID_STRING)])
-          .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
-          .setNodeAccountIds([
-            AccountId.fromString("0.0.3"),
-            AccountId.fromString("0.0.4"),
-            AccountId.fromString("0.0.5")
-          ])
-          .freeze();
+          const rawAssociateTx = new TokenAssociateTransaction()
+            .setAccountId(AccountId.fromString(accountId))
+            .setTokenIds([TokenId.fromString(receiveToken.tokenId)])
+            .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
+            .setNodeAccountIds([
+              AccountId.fromString("0.0.3"),
+              AccountId.fromString("0.0.4"),
+              AccountId.fromString("0.0.5")
+            ])
+            .freeze();
 
-        const txBytes = rawAssociateTx.toBytes();
-        const associateTx = Transaction.fromBytes(txBytes);
+          const txBytes = rawAssociateTx.toBytes();
+          const associateTx = Transaction.fromBytes(txBytes);
 
-        const assocTxId = await executeTransaction(associateTx);
-        if (!assocTxId) {
-          throw new Error(
-            `TokenAssociateTransaction for ${WAGER_TOKEN_ID_STRING} was rejected or failed.`
-          );
+          const assocTxId = await executeTransaction(associateTx);
+          if (!assocTxId) {
+            throw new Error(`TokenAssociateTransaction for ${receiveToken.symbol} was rejected or failed.`);
+          }
+          console.log("[Wagerswap] ✅ Association tx submitted:", assocTxId);
         }
-        console.log("[Wagerswap] ✅ Association tx submitted:", assocTxId);
       }
 
       // ── Step 3: Build the swap transaction ──────────────────────────────────
       setSwapStatus("swapping");
+      let swapTx = new TransferTransaction();
 
-      const direction = isHbarToWager ? 'HBAR_TO_WAGER' : 'WAGER_TO_HBAR';
-      let swapTx;
-
-      if (isHbarToWager) {
+      if (payToken.symbol === "HBAR") {
         const amountInHbar = Hbar.fromString(payAmount);
-        console.log(`[Wagerswap] Executing HBAR -> $WAGER Swap: ${payAmount} HBAR to Treasury.`);
+        console.log(`[Wagerswap] Executing Swap: ${payAmount} HBAR to Treasury.`);
         
-        swapTx = new TransferTransaction()
-          .addHbarTransfer(accountId, amountInHbar.negated())
-          .addHbarTransfer(TREASURY_ID, amountInHbar)
-          .setTransactionMemo("WagerHub Swap: HBAR -> $WAGER");
+        swapTx.addHbarTransfer(accountId, amountInHbar.negated())
+              .addHbarTransfer(TREASURY_ID, amountInHbar)
+              .setTransactionMemo(`WagerHub Swap: HBAR -> ${receiveToken.symbol}`);
       } else {
-        // $WAGER -> HBAR
-        // $WAGER has 8 decimals
-        const amountInTokens = Math.floor(parseFloat(payAmount) * 1e8);
-        console.log(`[Wagerswap] Executing $WAGER -> HBAR Swap: ${payAmount} $WAGER to Treasury.`);
+        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, payToken.decimals));
+        console.log(`[Wagerswap] Executing Swap: ${payAmount} ${payToken.symbol} to Treasury.`);
 
-        swapTx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ID, amountInTokens)
-          .setTransactionMemo("WagerHub Swap: $WAGER -> HBAR");
+        swapTx.addTokenTransfer(TokenId.fromString(payToken.tokenId), accountId, -amountInTokens)
+              .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens)
+              .setTransactionMemo(`WagerHub Swap: ${payToken.symbol} -> ${receiveToken.symbol}`);
       }
 
       let res;
@@ -253,18 +243,15 @@ export default function Wagerswap() {
 
       // ── Step 4: Backend Payout ─────────────────────────────────────────────
       setSwapStatus("payout");
-      const actualPayoutAmount = isHbarToWager ? receiveAmount : payAmount;
-      console.log(`[Wagerswap] Requesting backend payout of ${actualPayoutAmount} ${receiveToken.symbol} to ${accountId}`);
-      console.log(`[Wagerswap] Using Treasury ID: ${TREASURY_ID}`);
+      console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${accountId}`);
 
       const payoutRes = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           accountId, 
-          hbarAmount: isHbarToWager ? payAmount : null,
-          wagerAmount: !isHbarToWager ? payAmount : null,
-          direction,
+          receiveTokenId: receiveToken.tokenId,
+          receiveAmountStr: receiveAmount,
           transactionId: res.txId 
         })
       });
@@ -278,19 +265,16 @@ export default function Wagerswap() {
       // ── Step 5: Success ────────────────────────────────────────────────────
       console.log("[Wagerswap] ✅ Swap & Payout successful. Tx ID:", txId);
       
-      // Reward the user with WagerCredits
       const earnedCredits = Math.floor(parseFloat(payAmount) * 10);
       addWagerCredits(earnedCredits);
       
-      // Trigger a glorious celebration
       confetti({
         particleCount: 150,
         spread: 90,
         origin: { y: 0.6 },
-        colors: ['#FFD700', '#CCFF00', '#00FFFF'] // Neon Gold, Lime, Cyan
+        colors: ['#FFD700', '#CCFF00', '#00FFFF']
       });
 
-      // Silently sync the new high score to the Hedera Consensus Service
       fetch('/api/log-score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,30 +292,24 @@ export default function Wagerswap() {
       setPayAmount("");
       setIsApproved(false);
 
-      // Refresh wallet balances immediately and again after 3s to account for Mirror Node indexing
       refreshBalances();
       setTimeout(() => refreshBalances(), 3000);
 
     } catch (err: unknown) {
-      // ── Full error logging — shows Hedera ResponseCode (e.g. TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
       console.log("[Wagerswap] ❌ Swap error:", err);
-
-      // Extract a human-readable message if the Hedera SDK provides one
       let message = "Swap failed. Check console for the Hedera ResponseCode.";
       if (err instanceof Error) {
         message = err.message;
-        // Hedera SDK often embeds the ResponseCode in the message string
         if (message.includes("TOKEN_NOT_ASSOCIATED_TO_ACCOUNT")) {
-          message = "$WAGER not associated. Please retry — association will be triggered automatically.";
+          message = `${receiveToken.symbol} not associated. Please retry — association will be triggered automatically.`;
         } else if (message.includes("INSUFFICIENT_PAYER_BALANCE")) {
-          message = "Insufficient HBAR balance to cover gas + swap amount.";
+          message = "Insufficient balance to cover gas + swap amount.";
         } else if (message.includes("INSUFFICIENT_GAS")) {
           message = "Gas too low. Contact support — gas is set to " + SWAP_GAS + ".";
         } else if (message.includes("CONTRACT_REVERT_EXECUTED")) {
           message = "Router contract reverted. Slippage too high or pool has insufficient liquidity.";
         }
       }
-
       setSwapError(message);
       setSwapStatus("error");
     } finally {
@@ -340,7 +318,6 @@ export default function Wagerswap() {
   };
 
   const flipTokens = () => {
-    setIsHbarToWager(!isHbarToWager);
     setPayToken(receiveToken);
     setReceiveToken(payToken);
     setPayAmount("");
@@ -442,9 +419,8 @@ export default function Wagerswap() {
                 type="number"
                 placeholder="0.00"
                 value={payAmount}
-                disabled={payToken.symbol !== "HBAR" && payToken.symbol !== "$WAGER"}
                 onChange={(e) => setPayAmount(e.target.value)}
-                className={`bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full ${(payToken.symbol !== "HBAR" && payToken.symbol !== "$WAGER") ? 'opacity-20 cursor-not-allowed' : ''}`}
+                className="bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full"
               />
               
               {/* Pay Token Selector */}
@@ -494,10 +470,10 @@ export default function Wagerswap() {
               </div>
             </div>
             
-            {/* HBAR Balance and Quick Selectors */}
+            {/* Pay Balance and Quick Selectors */}
             <div className="flex justify-between items-center mt-6 px-1 border-t border-white/5 pt-4">
               <div className="flex items-center gap-1.5 text-white/30 text-[10px] font-bold uppercase tracking-tighter">
-                Balance: <span className="text-white/60 ml-1">{balances.hbar || "0.00"} HBAR</span>
+                Balance: <span className="text-white/60 ml-1">{getBalanceForToken(payToken.symbol)} {payToken.symbol}</span>
               </div>
               <div className="flex gap-1.5">
                 {['25%', '50%', '75%', 'MAX'].map((label) => (
@@ -598,16 +574,30 @@ export default function Wagerswap() {
               </div>
             </div>
             
-            {/* $WAGER Balance */}
+            {/* Receive Balance */}
             <div className="flex items-center mt-6 px-1 border-t border-white/5 pt-4 text-white/30 text-[10px] font-bold uppercase tracking-tighter">
-              Balance: <span className="text-wager-lime/60 ml-2">{balances.wager || "0.00"} $WAGER</span>
+              Balance: <span className="text-wager-lime/60 ml-2">{getBalanceForToken(receiveToken.symbol)} {receiveToken.symbol}</span>
             </div>
+          </div>
+        </div>
+
+        {/* Live Exchange Rate Ticker */}
+        <div className="mt-8 px-4 flex items-center justify-between text-[11px] font-mono text-zinc-400 bg-wager-black border border-white/5 p-3 rounded-xl">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className="uppercase tracking-widest font-bold text-white/50">Live Rate (SaucerSwap Mock)</span>
+          </div>
+          <div className="font-bold text-white">
+            1 {payToken.symbol} ≈ {exchangeRate} {receiveToken.symbol}
           </div>
         </div>
 
         {/* Routing Path Visualization */}
         {isHopRequired && (
-          <div className="mt-8 px-4 flex items-center justify-between text-xs font-mono text-zinc-500 uppercase tracking-widest bg-wager-black/40 p-3 rounded-xl border border-white/5">
+          <div className="mt-4 px-4 flex items-center justify-between text-[11px] font-mono text-zinc-500 uppercase tracking-widest bg-wager-black/40 p-3 rounded-xl border border-white/5">
             <span className="font-bold">Multi-Hop Route</span>
             <div className="flex items-center gap-3">
               <span className="text-white">{payToken.symbol}</span>
@@ -616,6 +606,13 @@ export default function Wagerswap() {
               <span className="text-zinc-600 font-sans">→</span>
               <span className="text-wager-lime font-bold">{receiveToken.symbol}</span>
             </div>
+          </div>
+        )}
+
+        {isHopRequired && (
+          <div className="mt-2 px-4 flex justify-between text-[10px] font-mono text-zinc-600">
+            <span>Estimated Gas: ~0.005 HBAR</span>
+            <span>Atomic Router Simulation</span>
           </div>
         )}
 
@@ -679,7 +676,7 @@ export default function Wagerswap() {
             {!isConnected ? (
               <>Connect Wallet to Swap</>
             ) : isProcessing && swapStatus === "associating" ? (
-              <><Loader2 size={24} className="animate-spin" /> Associating $WAGER Token...</>
+              <><Loader2 size={24} className="animate-spin" /> Associating {receiveToken.symbol} Token...</>
             ) : isProcessing && swapStatus === "swapping" ? (
               <><Loader2 size={24} className="animate-spin" /> Awaiting Wallet Approval...</>
             ) : isProcessing && swapStatus === "payout" ? (
@@ -688,10 +685,8 @@ export default function Wagerswap() {
               <><Loader2 size={24} className="animate-spin" /> Processing...</>
             ) : requiresApproval && !isApproved ? (
               <>Approve {payToken.symbol} Contract</>
-            ) : payToken.symbol === "$WAGER" ? (
-              <>Swap $WAGER for HBAR</>
             ) : (
-              <>Execute Swap &amp; Load Wallet</>
+              <>Execute Swap</>
             )}
             {isApproved && requiresApproval && !isProcessing && <CheckCircle2 size={28} className="text-black" />}
           </motion.button>
@@ -709,4 +704,3 @@ export default function Wagerswap() {
     </div>
   );
 }
-
