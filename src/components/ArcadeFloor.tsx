@@ -20,7 +20,7 @@ export default function ArcadeFloor() {
       description: "Minesweeper but brutally unfair.",
       icon: <Target size={48} className="text-wager-lime" />,
       color: "bg-wager-lime/10 border-wager-lime/30",
-      backgroundImage: "bg-[url('/blind-loot-bg.jpg')]",
+      backgroundImage: "bg-[url('/blind%20loot.jpg')]",
       overlayClass: "from-black/95 via-black/40 to-transparent",
     },
     {
