@@ -131,10 +131,12 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="flex-1 w-full h-full flex items-center justify-center p-8 absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-wager-cyan/5 via-slate-950 to-slate-950"
+                className="flex-1 w-full h-full absolute inset-0 overflow-y-auto custom-scrollbar bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-wager-cyan/5 via-slate-950 to-slate-950"
               >
-                <div className="w-full max-w-4xl relative">
-                  <Wagerswap />
+                <div className="min-h-full flex flex-col items-center justify-start p-4 md:p-8">
+                  <div className="w-full max-w-4xl relative my-auto py-8 md:py-12">
+                    <Wagerswap />
+                  </div>
                 </div>
               </motion.div>
             )}
