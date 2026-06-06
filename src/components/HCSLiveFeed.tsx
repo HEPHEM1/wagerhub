@@ -1,16 +1,21 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Terminal } from 'lucide-react';
+import { Terminal, ArrowRightLeft } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-interface HCSMessage {
-  sequence_number: number;
-  message: string;
-  consensus_timestamp: string;
+interface ParsedMessage {
+  id: string;
+  time: string;
+  accountId: string;
+  credits: number;
+  event: string;
+  raw: string;
+  isParsed: boolean;
 }
 
 export const HCSLiveFeed = () => {
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ParsedMessage[]>([]);
   const topicId = (process.env.NEXT_PUBLIC_HCS_TOPIC_ID || "0.0.5284340").trim();
 
   useEffect(() => {
@@ -33,14 +38,35 @@ export const HCSLiveFeed = () => {
         
         const data = await res.json();
         if (data.messages) {
-          const decodedMessages = data.messages.map((m: any) => {
+          const parsedMessages = data.messages.map((m: any) => {
+            let rawStr = "Binary message received";
             try {
-              return atob(m.message);
-            } catch {
-              return "Binary message received";
+              rawStr = atob(m.message);
+            } catch {}
+
+            let parsed = null;
+            try {
+              // Convert Python dict string to JSON if necessary
+              const jsonStr = rawStr.replace(/'/g, '"');
+              parsed = JSON.parse(jsonStr);
+            } catch (e) {
+              // Fallback if it's genuinely not JSON
             }
+
+            const d = new Date(parseFloat(m.consensus_timestamp) * 1000);
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+            return {
+              id: m.sequence_number.toString(),
+              time: timeStr,
+              accountId: parsed?.accountId || "Unknown",
+              credits: parsed?.creditsEarned || 0,
+              event: parsed?.event || "unknown",
+              raw: rawStr,
+              isParsed: !!parsed && !!parsed.accountId
+            };
           });
-          setMessages(decodedMessages);
+          setMessages(parsedMessages);
         }
 
         // Continue polling normally
@@ -79,21 +105,50 @@ export const HCSLiveFeed = () => {
         </div>
       </div>
       
-      <div className="p-4 font-mono text-xs md:text-sm space-y-3 max-h-[250px] overflow-y-auto">
-        {messages.length > 0 ? messages.map((msg, i) => (
-          <div key={i} className="flex gap-3 text-white/60 hover:text-cyan-200/90 transition-colors border-l-2 border-cyan-500/20 pl-3 group">
-            <span className="text-white/20 group-hover:text-cyan-500/40 shrink-0">
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
-            </span>
-            <span className="text-cyan-400/80 font-bold">::</span>
-            <span className="truncate">{msg}</span>
-          </div>
-        )) : (
-          <div className="text-white/20 italic flex items-center justify-center py-4 gap-3">
-            <div className="w-4 h-4 border-2 border-white/10 border-t-cyan-500 rounded-full animate-spin" />
-            Waiting for live swaps...
-          </div>
-        )}
+      <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+        <AnimatePresence initial={false}>
+          {messages.length > 0 ? messages.map((msg) => (
+            <motion.div 
+              key={msg.id}
+              initial={{ opacity: 0, x: -20, height: 0 }}
+              animate={{ opacity: 1, x: 0, height: 'auto' }}
+              className="w-full bg-wager-black/50 border border-white/5 rounded-xl p-3 hover:bg-white/5 hover:border-cyan-500/30 transition-all group overflow-hidden"
+            >
+              {msg.isParsed ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                       <ArrowRightLeft size={16} className="text-cyan-400 group-hover:rotate-180 transition-transform duration-500" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-mono font-bold text-sm">{msg.accountId}</span>
+                        <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest shadow-[0_0_10px_rgba(74,222,128,0.2)]">Swapped</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400 font-mono mt-1 uppercase tracking-wider">
+                        Earned <span className="text-amber-400 font-bold ml-1">{msg.credits} WagerCredits</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-zinc-600 font-mono text-right shrink-0">
+                    {msg.time}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3 text-white/60 hover:text-cyan-200/90 transition-colors border-l-2 border-cyan-500/20 pl-3 font-mono text-xs">
+                  <span className="text-white/20 shrink-0">{msg.time}</span>
+                  <span className="text-cyan-400/80 font-bold">::</span>
+                  <span className="truncate">{msg.raw}</span>
+                </div>
+              )}
+            </motion.div>
+          )) : (
+            <div className="text-white/20 italic flex items-center justify-center py-8 gap-3 font-mono text-xs">
+              <div className="w-4 h-4 border-2 border-white/10 border-t-cyan-500 rounded-full animate-spin" />
+              Listening to Hedera Consensus Service...
+            </div>
+          )}
+        </AnimatePresence>
       </div>
       
       <div className="px-4 py-1.5 bg-cyan-500/5 text-[9px] text-cyan-500/50 font-mono flex justify-between items-center border-t border-white/5">
