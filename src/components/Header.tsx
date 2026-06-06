@@ -143,10 +143,14 @@ export default function Header() {
               className="flex items-center gap-3 bg-wager-charcoal/50 text-white text-xs font-mono font-bold px-4 py-1.5 rounded-full border border-wager-lime/20 cursor-pointer hover:bg-wager-charcoal transition-colors"
             >
               {/* Account ID & Balances */}
-              <div className="flex flex-col items-end mr-1 text-right">
+              <div className="flex flex-col items-end mr-2 text-right">
                 <span className="text-white text-[10px] bg-white/10 px-2 py-0.5 rounded-full mb-1">{accountId}</span>
-                <span className="text-wager-lime text-[10px]">{balances.hbar} HBAR</span>
-                <span className="text-wager-cyan text-[10px]">{balances.wager} WAGER</span>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-right place-items-end">
+                  <span className="text-wager-lime text-[10px]">{balances.hbar} HBAR</span>
+                  <span className="text-wager-cyan text-[10px]">{balances.wager} WAGER</span>
+                  <span className="text-blue-400 text-[10px]">{balances.usdc || "0.00"} USDC</span>
+                  <span className="text-emerald-400 text-[10px]">{balances.usdt || "0.00"} USDT</span>
+                </div>
               </div>
 
               {/* Avatar */}
