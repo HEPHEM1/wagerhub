@@ -33,12 +33,39 @@ const SWAP_GAS = 100_000;
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 const TREASURY_ID = (process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim();
 
+// Core 4-token roster — SAUCE/PACK/HBARX removed per spec
 const TOKENS = [
-  { id: "HBAR", symbol: "HBAR", type: "native", icon: "ℏ", decimals: 8, tokenId: "HBAR" },
-  { id: "USDC", symbol: "USDC", type: "erc20", icon: "$", decimals: 6, tokenId: USDC_TOKEN_ID_STRING },
-  { id: "USDT", symbol: "USDT", type: "erc20", icon: "₮", decimals: 6, tokenId: USDT_TOKEN_ID_STRING },
-  { id: "WAGER", symbol: "$WAGER", type: "erc20", icon: "W", decimals: 8, tokenId: WAGER_TOKEN_ID_STRING },
+  {
+    id: "HBAR",  symbol: "HBAR",   type: "native", decimals: 8, tokenId: "HBAR",
+    iconUrl: "https://assets.coingecko.com/coins/images/3688/standard/hbar.png",
+  },
+  {
+    id: "USDC",  symbol: "USDC",   type: "erc20",  decimals: 6, tokenId: USDC_TOKEN_ID_STRING,
+    iconUrl: "https://assets.coingecko.com/coins/images/6319/standard/usdc.png",
+  },
+  {
+    id: "USDT",  symbol: "USDT",   type: "erc20",  decimals: 6, tokenId: USDT_TOKEN_ID_STRING,
+    iconUrl: "https://assets.coingecko.com/coins/images/325/standard/Tether.png",
+  },
+  {
+    id: "WAGER", symbol: "$WAGER", type: "erc20",  decimals: 8, tokenId: WAGER_TOKEN_ID_STRING,
+    iconUrl: "https://ui-avatars.com/api/?name=W&background=CCFF00&color=000&rounded=true&bold=true",
+  },
 ];
+
+// ─── Routing: all pairs in a 4-token universe are direct ───────────────────────────
+type Token = typeof TOKENS[number];
+
+// Build direct-pool set programmatically for every A↔B combo
+const DIRECT_POOLS = new Set(
+  TOKENS.flatMap((a) => TOKENS.filter((b) => b.id !== a.id).map((b) => `${a.symbol}-${b.symbol}`))
+);
+
+const getRoute = (pay: Token, receive: Token): Token[] => {
+  if (pay.symbol === receive.symbol) return [pay];
+  // In a 4-token universe all pairs are direct pools
+  return [pay, receive];
+};
 
 export default function Wagerswap() {
   const [payAmount, setPayAmount] = useState("");
@@ -53,7 +80,7 @@ export default function Wagerswap() {
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, balances, network, wagerCredits, addWagerCredits, executeTransaction, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, balances, network, wagerPoints, addWagerPoints, executeTransaction, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
 
@@ -72,36 +99,103 @@ export default function Wagerswap() {
     setSwapStatus("idle");
   }, [payToken, receiveToken]);
 
-  // ── Oracle Mock (SaucerSwap) ────────────────────────────────────────────────
-  // Mock oracle rates relative to HBAR (how many of Token X equal 1 HBAR)
-  const ratesToHbar: Record<string, number> = {
-    "HBAR": 1,
-    "$WAGER": 100, // 1 HBAR = 100 WAGER
-    "USDC": 0.10,  // 1 HBAR = 0.10 USDC => 1 USDC = 10 HBAR
-    "USDT": 0.10   // 1 HBAR = 0.10 USDT => 1 USDT = 10 HBAR
+  // ── Live Oracle: USD prices (4-token core) ───────────────────────────────────────────────────
+  //  HBAR  → live from /api/prices (SaucerSwap → CoinGecko → static fallback)
+  //  USDC  → live from /api/prices
+  //  USDT  → live from /api/prices
+  //  $WAGER → LOCKED: always hbarUsd / 10. Never fetched from any external API.
+  const [pricesUsd, setPricesUsd] = useState<Record<string, number>>({
+    "HBAR":   0.07,
+    "$WAGER": 0.007,  // fallback: 0.07 / 10
+    "USDC":   1.00,
+    "USDT":   1.00,
+  });
+  const [oracleSource, setOracleSource]     = useState<"live" | "fallback">("fallback");
+  const [oracleUpdatedAt, setOracleUpdatedAt] = useState<number | null>(null);
+
+  // Decimal precision map for on-chain math normalization
+  const TOKEN_DECIMALS: Record<string, number> = {
+    "HBAR":   8,
+    "$WAGER": 8,
+    "USDC":   6,
+    "USDT":   6,
+  };
+
+  // ── 30-second live price refresh via /api/prices proxy ───────────────────────────────
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLivePrices = async () => {
+      try {
+        const res = await fetch("/api/prices", { cache: "no-store" });
+        if (!res.ok) throw new Error(`/api/prices returned ${res.status}`);
+        const data: { source: string; prices: Record<string, number>; updatedAt: number } = await res.json();
+        if (!isMounted) return;
+
+        // Validate prices before applying
+        const hbarUsd = data.prices["HBAR"];
+        const usdcUsd = data.prices["USDC"];
+        const usdtUsd = data.prices["USDT"];
+
+        const next: Record<string, number> = {};
+        if (isFinite(hbarUsd) && hbarUsd > 0.001) {
+          next["HBAR"]   = hbarUsd;
+          next["$WAGER"] = hbarUsd / 10;  // ← RULE: locked constant, never from API
+        }
+        if (isFinite(usdcUsd) && usdcUsd > 0.9 && usdcUsd < 1.1) next["USDC"] = usdcUsd;
+        if (isFinite(usdtUsd) && usdtUsd > 0.9 && usdtUsd < 1.1) next["USDT"] = usdtUsd;
+
+        setPricesUsd(prev => ({ ...prev, ...next }));
+        setOracleSource(data.source === "fallback" ? "fallback" : "live");
+        setOracleUpdatedAt(data.updatedAt);
+        console.log(`[Wagerswap] 📊 Oracle (${data.source}): HBAR=$${next["HBAR"]?.toFixed(4)} WAGER=$${next["$WAGER"]?.toFixed(5)}`);
+      } catch (err) {
+        console.warn("[Wagerswap] Price fetch failed, keeping current rates:", err);
+        if (isMounted) setOracleSource("fallback");
+      }
+    };
+
+    fetchLivePrices();
+    const interval = setInterval(fetchLivePrices, 30_000);
+    return () => { isMounted = false; clearInterval(interval); };
+  }, []);
+
+  // ── Rate computation ────────────────────────────────────────────────────────────────────
+  // rate = pricesUsd[pay] / pricesUsd[receive]
+  // $WAGER is always pricesUsd["HBAR"] / 10, enforced in the oracle above.
+  // Decimal normalization is applied on-chain (TOKEN_DECIMALS), not here.
+  const computeRate = (pay: Token, receive: Token): number => {
+    const payUsd     = pricesUsd[pay.symbol]     ?? 0.01;
+    const receiveUsd = pricesUsd[receive.symbol] ?? 0.01;
+    if (receiveUsd === 0) return 0;
+    return payUsd / receiveUsd;
   };
 
   useEffect(() => {
-    const updateRate = () => {
-      const pToH = 1 / ratesToHbar[payToken.symbol]; 
-      const hToR = ratesToHbar[receiveToken.symbol]; 
-      const rate = pToH * hToR;
-      setExchangeRate(rate.toFixed(4));
-    };
-    updateRate();
-    const interval = setInterval(updateRate, 5000); // Poll every 5s
-    return () => clearInterval(interval);
-  }, [payToken, receiveToken]);
+    const rate = computeRate(payToken, receiveToken);
+    const precision = rate < 0.0001 ? 8 : rate < 0.01 ? 6 : rate < 10 ? 4 : 2;
+    setExchangeRate(rate.toFixed(precision));
+  }, [payToken, receiveToken, pricesUsd]);
 
-  const getReceiveAmount = () => {
-    if (!payAmount || isNaN(parseFloat(payAmount))) return "";
-    const rate = parseFloat(exchangeRate);
-    return (parseFloat(payAmount) * rate).toFixed(2);
+  const getReceiveAmount = (): string => {
+    const amt = parseFloat(payAmount);
+    if (!payAmount || isNaN(amt) || amt <= 0) return "";
+    const rate   = computeRate(payToken, receiveToken);
+    const result = amt * rate;
+    if (result === 0) return "0";
+    if (result >= 1000)  return result.toFixed(2);
+    if (result >= 1)     return result.toFixed(4);
+    if (result >= 0.001) return result.toFixed(6);
+    return result.toFixed(8);
   };
 
   const receiveAmount = getReceiveAmount();
+
+  // ── Routing (all 4×4 pairs are direct) ───────────────────────────────────────────────────
+  const route        = getRoute(payToken, receiveToken);
+  const isMultiHop   = false;  // No multi-hop in 4-token universe
   const requiresApproval = payToken.type === "erc20" && payToken.symbol !== "$WAGER";
-  const isHopRequired = payToken.symbol !== "HBAR" && receiveToken.symbol !== "HBAR" && payToken.symbol !== receiveToken.symbol;
+  const isHopRequired    = false;
 
   const getBalanceForToken = (symbol: string) => {
     switch (symbol) {
@@ -128,7 +222,7 @@ export default function Wagerswap() {
     setPayAmount(amount.toFixed(2));
   };
 
-  // ── Association check ─────────────────────────────────────────────────────────
+  // ── Association check (single token) ──────────────────────────────────────────────
   const checkTokenAssociation = async (accId: string, tokenIdStr: string): Promise<boolean> => {
     try {
       if (tokenIdStr === "HBAR") return true;
@@ -145,7 +239,37 @@ export default function Wagerswap() {
     }
   };
 
-  // ── Main executeSwap ──────────────────────────────────────────────────────────
+  // ── Batch association guardrail (loops through entire route) ──────────────────────
+  const ensureAllAssociated = async (accId: string, tokensToCheck: Token[]): Promise<void> => {
+    const toAssociate: TokenId[] = [];
+    for (const token of tokensToCheck) {
+      if (token.type === "native" || token.tokenId === "HBAR") continue;
+      const associated = await checkTokenAssociation(accId, token.tokenId);
+      if (!associated) {
+        console.log(`[Wagerswap] Queuing association for ${token.symbol} (${token.tokenId})`);
+        toAssociate.push(TokenId.fromString(token.tokenId));
+      }
+    }
+    if (toAssociate.length === 0) return;
+
+    setSwapStatus("associating");
+    console.log(`[Wagerswap] Associating ${toAssociate.length} token(s) in unified tx...`);
+    const rawAssocTx = new TokenAssociateTransaction()
+      .setAccountId(AccountId.fromString(accId))
+      .setTokenIds(toAssociate)
+      .setTransactionId(TransactionId.generate(AccountId.fromString(accId)))
+      .setNodeAccountIds([
+        AccountId.fromString("0.0.3"),
+        AccountId.fromString("0.0.4"),
+        AccountId.fromString("0.0.5"),
+      ])
+      .freeze();
+    const assocRes = await executeTransaction(Transaction.fromBytes(rawAssocTx.toBytes()));
+    if (!assocRes) throw new Error("Token association rejected. Please approve in your wallet and retry.");
+    console.log("[Wagerswap] ✅ Batch association confirmed:", assocRes.txId);
+  };
+
+  // ── Main executeSwap ─────────────────────────────────────────────────────────────────────────
   const executeSwap = async () => {
     if (!isConnected || !accountId) {
       setSwapError("Connect your wallet first.");
@@ -177,35 +301,9 @@ export default function Wagerswap() {
         return;
       }
 
-      // ── Step 2: Check token association
-      if (receiveToken.type === "erc20") {
-        const associated = await checkTokenAssociation(accountId, receiveToken.tokenId);
-
-        if (!associated) {
-          setSwapStatus("associating");
-          console.log(`[Wagerswap] Account not associated with ${receiveToken.symbol} (${receiveToken.tokenId})`);
-
-          const rawAssociateTx = new TokenAssociateTransaction()
-            .setAccountId(AccountId.fromString(accountId))
-            .setTokenIds([TokenId.fromString(receiveToken.tokenId)])
-            .setTransactionId(TransactionId.generate(AccountId.fromString(accountId)))
-            .setNodeAccountIds([
-              AccountId.fromString("0.0.3"),
-              AccountId.fromString("0.0.4"),
-              AccountId.fromString("0.0.5")
-            ])
-            .freeze();
-
-          const txBytes = rawAssociateTx.toBytes();
-          const associateTx = Transaction.fromBytes(txBytes);
-
-          const assocTxId = await executeTransaction(associateTx);
-          if (!assocTxId) {
-            throw new Error(`TokenAssociateTransaction for ${receiveToken.symbol} was rejected or failed.`);
-          }
-          console.log("[Wagerswap] ✅ Association tx submitted:", assocTxId);
-        }
-      }
+      // ── Step 2: Batch-check + associate ALL tokens in the route ────────────────
+      const tokensToAssociate = route.slice(1); // everything except the pay token
+      await ensureAllAssociated(accountId, tokensToAssociate);
 
       // ── Step 3: Build the swap transaction ──────────────────────────────────
       setSwapStatus("swapping");
@@ -213,18 +311,19 @@ export default function Wagerswap() {
 
       if (payToken.symbol === "HBAR") {
         const amountInHbar = Hbar.fromString(payAmount);
-        console.log(`[Wagerswap] Executing Swap: ${payAmount} HBAR to Treasury.`);
-        
+        console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")}`);
         swapTx.addHbarTransfer(accountId, amountInHbar.negated())
               .addHbarTransfer(TREASURY_ID, amountInHbar)
-              .setTransactionMemo(`WagerHub Swap: HBAR -> ${receiveToken.symbol}`);
+              .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
       } else {
-        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, payToken.decimals));
-        console.log(`[Wagerswap] Executing Swap: ${payAmount} ${payToken.symbol} to Treasury.`);
+        // Use TOKEN_DECIMALS map to guarantee correct on-chain scaling
+        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+        console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")} | Decimals: ${decimals}`);
 
         swapTx.addTokenTransfer(TokenId.fromString(payToken.tokenId), accountId, -amountInTokens)
               .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens)
-              .setTransactionMemo(`WagerHub Swap: ${payToken.symbol} -> ${receiveToken.symbol}`);
+              .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}${isMultiHop ? " via HBAR" : ""}`);
       }
 
       let res;
@@ -262,11 +361,27 @@ export default function Wagerswap() {
         throw new Error(`Swap successful, but Backend Payout failed: ${data.error || "Unknown server error"}`);
       }
 
-      // ── Step 5: Success ────────────────────────────────────────────────────
+      // ── Step 5: Success & Reward Calculation ───────────────────────────────
       console.log("[Wagerswap] ✅ Swap & Payout successful. Tx ID:", txId);
       
-      const earnedCredits = Math.floor(parseFloat(payAmount) * 10);
-      addWagerCredits(earnedCredits);
+      const usdEquivalentValue = parseFloat(payAmount) * (pricesUsd[payToken.symbol] || 0);
+      const todayGMT = new Date().toISOString().split('T')[0];
+      const lastBonusDate = localStorage.getItem(`wagerHub_daily_bonus_date_${accountId}`);
+
+      let earnedPoints = 0;
+
+      if (usdEquivalentValue >= 10.00 && lastBonusDate !== todayGMT) {
+        // Daily $10 Bonus Hit!
+        earnedPoints = 5000;
+        localStorage.setItem(`wagerHub_daily_bonus_date_${accountId}`, todayGMT);
+        console.log(`[Wagerswap] 🏆 MASSIVE BONUS AWARDED! 5,000 Points for first $10+ swap today.`);
+      } else {
+        // Baseline volume reward
+        earnedPoints = Math.floor(usdEquivalentValue * 250);
+        console.log(`[Wagerswap] 🪙 Baseline reward awarded: ${earnedPoints} Points for $${usdEquivalentValue.toFixed(2)} volume.`);
+      }
+
+      addWagerPoints(earnedPoints);
       
       confetti({
         particleCount: 150,
@@ -275,18 +390,9 @@ export default function Wagerswap() {
         colors: ['#FFD700', '#CCFF00', '#00FFFF']
       });
 
-      fetch('/api/log-score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId,
-          creditsEarned: earnedCredits,
-          totalCredits: wagerCredits + earnedCredits,
-          event: "wagerswap"
-        })
-      }).catch(err => console.error("[HCS Sync Error]", err));
+      // (HCS log-score submission is now automatically handled inside addWagerPoints context)
 
-      setLastEarnedCredits(earnedCredits);
+      setLastEarnedCredits(earnedPoints);
       setLastTxId(txId);
       setSwapStatus("success");
       setPayAmount("");
@@ -433,7 +539,7 @@ export default function Wagerswap() {
                   className="flex items-center gap-3 bg-wager-charcoal hover:bg-wager-charcoal/80 px-6 py-4 rounded-2xl transition-colors border border-white/10 shadow-lg min-w-[160px] justify-between"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold text-white shadow-inner">{payToken.icon}</span>
+                    <img src={payToken.iconUrl} alt={payToken.symbol} className="w-6 h-6 rounded-full" />
                     <span className="font-black text-2xl text-white tracking-wide">{payToken.symbol}</span>
                   </div>
                   <ChevronDown size={20} className="text-zinc-400" />
@@ -446,7 +552,7 @@ export default function Wagerswap() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full right-0 mt-3 w-64 bg-wager-charcoal border-2 border-wager-cyan/20 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50"
+                      className="absolute top-full right-0 mt-3 w-64 bg-wager-charcoal border-2 border-wager-cyan/20 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-y-auto max-h-72 z-50 custom-scrollbar"
                     >
                       {TOKENS.map((token) => (
                         <button
@@ -460,7 +566,7 @@ export default function Wagerswap() {
                             token.symbol === receiveToken.symbol ? 'opacity-30 cursor-not-allowed bg-black/40' : 'hover:bg-wager-cyan/10 cursor-pointer'
                           }`}
                         >
-                          <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold text-white">{token.icon}</span>
+                          <img src={token.iconUrl} alt={token.symbol} className="w-6 h-6 rounded-full" />
                           <span className="font-black text-xl text-white">{token.symbol}</span>
                         </button>
                       ))}
@@ -521,11 +627,7 @@ export default function Wagerswap() {
                   className="flex items-center gap-3 bg-wager-charcoal hover:bg-wager-charcoal/80 px-6 py-4 rounded-2xl transition-colors border border-white/10 shadow-lg min-w-[160px] justify-between"
                 >
                   <div className="flex items-center gap-3">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-inner ${
-                      receiveToken.symbol === '$WAGER' ? 'bg-wager-lime/20 text-wager-lime' : 'bg-white/10 text-white'
-                    }`}>
-                      {receiveToken.icon}
-                    </span>
+                    <img src={receiveToken.iconUrl} alt={receiveToken.symbol} className="w-6 h-6 rounded-full" />
                     <span className={`font-black text-2xl tracking-wide ${
                       receiveToken.symbol === '$WAGER' ? 'text-wager-lime' : 'text-white'
                     }`}>
@@ -542,7 +644,7 @@ export default function Wagerswap() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full right-0 mt-3 w-64 bg-wager-charcoal border-2 border-wager-lime/20 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50"
+                      className="absolute top-full right-0 mt-3 w-64 bg-wager-charcoal border-2 border-wager-lime/20 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-y-auto max-h-72 z-50 custom-scrollbar"
                     >
                       {TOKENS.map((token) => (
                         <button
@@ -556,11 +658,7 @@ export default function Wagerswap() {
                             token.symbol === payToken.symbol ? 'opacity-30 cursor-not-allowed bg-black/40' : 'hover:bg-wager-lime/10 cursor-pointer'
                           }`}
                         >
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            token.symbol === '$WAGER' ? 'bg-wager-lime/20 text-wager-lime' : 'bg-white/10 text-white'
-                          }`}>
-                            {token.icon}
-                          </span>
+                          <img src={token.iconUrl} alt={token.symbol} className="w-6 h-6 rounded-full" />
                           <span className={`font-black text-xl ${
                             token.symbol === '$WAGER' ? 'text-wager-lime' : 'text-white'
                           }`}>
@@ -582,39 +680,59 @@ export default function Wagerswap() {
         </div>
 
         {/* Live Exchange Rate Ticker */}
-        <div className="mt-8 px-4 flex items-center justify-between text-[11px] font-mono text-zinc-400 bg-wager-black border border-white/5 p-3 rounded-xl">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            <span className="uppercase tracking-widest font-bold text-white/50">Live Rate (SaucerSwap Mock)</span>
+        <div className="mt-8 bg-wager-black border border-white/5 rounded-xl overflow-hidden">
+          {/* Top row: live indicator + rate */}
+          <div className="px-4 py-3 flex items-center justify-between text-[11px] font-mono text-zinc-400">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  oracleSource === "live" ? "bg-green-400" : "bg-amber-400"
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  oracleSource === "live" ? "bg-green-500" : "bg-amber-500"
+                }`}></span>
+              </span>
+              <span className={`uppercase tracking-widest font-bold ${
+                oracleSource === "live" ? "text-green-400" : "text-amber-400"
+              }`}>
+                {oracleSource === "live" ? "Live Rate" : "Fallback Rate"}
+              </span>
+              {oracleUpdatedAt && (
+                <span className="text-[9px] text-zinc-600 font-mono normal-case">
+                  • {new Date(oracleUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                </span>
+              )}
+            </div>
+            <div className="font-bold text-white text-sm">
+              1 {payToken.symbol} ≈ <span className="text-wager-lime">{exchangeRate}</span> {receiveToken.symbol}
+            </div>
           </div>
-          <div className="font-bold text-white">
-            1 {payToken.symbol} ≈ {exchangeRate} {receiveToken.symbol}
+
+          {/* Bottom row: live USD reference prices */}
+          <div className="px-4 py-2 border-t border-white/5 bg-white/[0.02] flex items-center justify-between gap-4">
+            <span className="text-[9px] text-zinc-600 uppercase tracking-widest font-bold">Ref Prices</span>
+            <div className="flex items-center gap-5">
+              {Object.entries(pricesUsd).map(([sym, usd]) => (
+                <span key={sym} className="flex items-center gap-1 text-[10px] font-mono">
+                  <span className="text-zinc-500">{sym}</span>
+                  <span className="text-zinc-300">${usd.toFixed(sym === '$WAGER' ? 5 : sym === 'HBAR' ? 4 : 4)}</span>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Routing Path Visualization */}
-        {isHopRequired && (
-          <div className="mt-4 px-4 flex items-center justify-between text-[11px] font-mono text-zinc-500 uppercase tracking-widest bg-wager-black/40 p-3 rounded-xl border border-white/5">
-            <span className="font-bold">Multi-Hop Route</span>
-            <div className="flex items-center gap-3">
-              <span className="text-white">{payToken.symbol}</span>
-              <span className="text-zinc-600 font-sans">→</span>
-              <span className="text-zinc-400">HBAR</span>
-              <span className="text-zinc-600 font-sans">→</span>
-              <span className="text-wager-lime font-bold">{receiveToken.symbol}</span>
-            </div>
+        {/* Direct pool label */}
+        <div className="mt-3 px-4 flex items-center justify-between text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
+          <span className="text-cyan-400/60 font-bold">Direct Pool</span>
+          <div className="flex items-center gap-2">
+            <img src={payToken.iconUrl} alt={payToken.symbol} className="w-3 h-3 rounded-full" />
+            <span className="text-white/40">{payToken.symbol}</span>
+            <span className="text-zinc-700">→</span>
+            <img src={receiveToken.iconUrl} alt={receiveToken.symbol} className="w-3 h-3 rounded-full" />
+            <span className="text-wager-lime/60">{receiveToken.symbol}</span>
           </div>
-        )}
-
-        {isHopRequired && (
-          <div className="mt-2 px-4 flex justify-between text-[10px] font-mono text-zinc-600">
-            <span>Estimated Gas: ~0.005 HBAR</span>
-            <span>Atomic Router Simulation</span>
-          </div>
-        )}
+        </div>
 
         {/* Error banner */}
         <AnimatePresence>

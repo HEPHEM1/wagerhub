@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Play, Link as LinkIcon, AlertCircle, RefreshCw, Layers, ShieldAlert, ArrowLeft, HelpCircle } from "lucide-react";
+import { X, Play, Link as LinkIcon, AlertCircle, RefreshCw, Layers, ShieldAlert, ArrowLeft, HelpCircle, Target } from "lucide-react";
 import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 import { useWalletContext } from "../context/WalletContext";
@@ -13,7 +13,7 @@ const TREASURY_ACCOUNT_ID = process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484"
 type Risk = "Low" | "Medium" | "High";
 
 export default function GravityDrop({ onClose }: { onClose: () => void }) {
-  const { isConnected, accountId, balances, connect, executeTransaction, refreshBalances } = useWalletContext();
+  const { isConnected, accountId, balances, connect, executeTransaction, refreshBalances, addWagerPoints } = useWalletContext();
 
   const [wager, setWager] = useState<string>("50");
   const [rows, setRows] = useState<number>(12);
@@ -190,6 +190,14 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       }).then(async r => { if (!r.ok) console.error(await r.text()) }).catch(console.error);
     }
 
+    const wagerAmount = parseFloat(wager);
+    if (wagerAmount >= 10.00) {
+      addWagerPoints(800);
+      console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+    } else {
+      console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+    }
+
     [2000, 4000].forEach(delay => setTimeout(() => refreshBalances(), delay));
   };
 
@@ -290,6 +298,13 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             </div>
+            {/* Minimum Wager Warning */}
+            {parseFloat(wager) < 10 && (
+              <div className="text-[10px] text-orange-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-2">
+                <Target size={10} />
+                Bet is under 10 $WAGER. 0 Points will be awarded.
+              </div>
+            )}
           </div>
 
           {/* Rows Config */}

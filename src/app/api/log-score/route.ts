@@ -3,9 +3,9 @@ import { Client, TopicMessageSubmitTransaction, PrivateKey } from "@hashgraph/sd
 
 export async function POST(req: Request) {
   try {
-    const { accountId, creditsEarned, totalCredits, event } = await req.json();
+    const { accountId, pointsEarned, totalPoints, event } = await req.json();
 
-    if (!accountId || creditsEarned === undefined) {
+    if (!accountId || pointsEarned === undefined) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -30,8 +30,8 @@ export async function POST(req: Request) {
     const messagePayload = JSON.stringify({
       accountId,
       event: event || "swap",
-      creditsEarned,
-      totalCredits,
+      pointsEarned,
+      totalPoints,
       timestamp: new Date().toISOString(),
     });
 

@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         ? parseFloat(hbarAmount.toString()) 
         : parseFloat(winAmount.toString());
 
-      const finalWagerAmount = hbarAmount ? calculatedWagerAmount * 100 : calculatedWagerAmount;
+      const finalWagerAmount = hbarAmount ? calculatedWagerAmount * 10 : calculatedWagerAmount;
       const amountInTokens = Math.floor(finalWagerAmount * 1e8);
       memo = hbarAmount ? "WagerHub Swap Payout" : "WagerHub Game Payout";
 
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     }
     // ─── Legacy Reverse Swap (WAGER -> HBAR) ──────────────────────────────
     else if (direction === 'WAGER_TO_HBAR') {
-      const hbarToPayout = parseFloat(wagerAmount.toString()) / 100;
+      const hbarToPayout = parseFloat(wagerAmount.toString()) / 10;
       memo = `WagerHub Reverse Swap: ${wagerAmount} $WAGER -> ${hbarToPayout} HBAR`;
 
       tx = new TransferTransaction()

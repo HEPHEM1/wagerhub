@@ -13,7 +13,7 @@ const TREASURY_ACCOUNT_ID = process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484"
 type Move = "ROCK" | "PAPER" | "SCISSORS";
 
 export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
-  const { isConnected, accountId, balances, connect, executeTransaction, refreshBalances } = useWalletContext();
+  const { isConnected, accountId, balances, connect, executeTransaction, refreshBalances, addWagerPoints } = useWalletContext();
 
   const [wager, setWager] = useState<string>("10");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -119,6 +119,14 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ accountId, winAmount: wager, wagerAmount: wager, direction: 'GAME_WIN' })
         }).then(async r => { if (!r.ok) console.error(await r.text()) }).catch(console.error);
+      }
+
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
       }
 
       // Refresh balances non-blockingly
@@ -228,6 +236,13 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             </div>
+            {/* Minimum Wager Warning */}
+            {parseFloat(wager) < 10 && (
+              <div className="text-[9px] text-orange-500 font-bold uppercase tracking-widest px-1 flex items-center gap-1 mt-2">
+                <Lock size={10} />
+                Bet is under 10 $WAGER. 0 Points will be awarded.
+              </div>
+            )}
           </div>
 
           {txError && (

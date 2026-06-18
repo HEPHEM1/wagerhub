@@ -193,7 +193,7 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => scrollToSection("why-wagerhub")}
+              onClick={() => scrollToSection("explore-hub")}
               className="relative z-10 px-16 py-8 font-black uppercase tracking-[0.3em] text-black bg-wager-cyan rounded-full text-2xl transition-all shadow-[0_0_60px_rgba(0,255,255,0.4)] hover:shadow-[0_0_100px_rgba(0,255,255,0.7)]"
             >
               Get Started
@@ -294,8 +294,48 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section className="relative w-full z-10 py-32 px-8 border-t border-white/5 bg-black/60">
+        <div className="max-w-4xl mx-auto relative z-10">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-widest mb-4">Frequently Asked Questions</h2>
+            <div className="w-24 h-1 bg-wager-red mx-auto rounded-full shadow-[0_0_15px_#ff0000]"></div>
+          </div>
+
+          <div className="space-y-4">
+            {faqs.map((faq, index) => (
+              <div key={index} className="bg-wager-charcoal/80 border border-white/10 rounded-2xl overflow-hidden">
+                <button
+                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                  className="w-full flex justify-between items-center p-6 text-left hover:bg-white/5 transition-colors"
+                >
+                  <span className="font-bold text-lg text-white tracking-wide">{faq.q}</span>
+                  <motion.div animate={{ rotate: openFaq === index ? 180 : 0 }}>
+                    <ChevronDown size={24} className="text-wager-cyan" />
+                  </motion.div>
+                </button>
+                <AnimatePresence>
+                  {openFaq === index && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-6 pt-0 text-zinc-400 font-mono leading-relaxed border-t border-white/5 mt-2">
+                        {faq.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Explore the Hub Section */}
-      <section className="relative w-full z-10 py-32 px-8 border-t border-white/5 bg-slate-950">
+      <section id="explore-hub" className="relative w-full z-10 py-32 px-8 border-t border-white/5 bg-slate-950">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-widest mb-4">Explore the Hub</h2>
@@ -362,46 +402,6 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
                 <p className="text-sm font-mono text-zinc-500">Knowledge Base & FAQ</p>
               </div>
             </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="relative w-full z-10 py-32 px-8 border-t border-white/5 bg-black/60">
-        <div className="max-w-4xl mx-auto relative z-10">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-widest mb-4">Frequently Asked Questions</h2>
-            <div className="w-24 h-1 bg-wager-red mx-auto rounded-full shadow-[0_0_15px_#ff0000]"></div>
-          </div>
-
-          <div className="space-y-4">
-            {faqs.map((faq, index) => (
-              <div key={index} className="bg-wager-charcoal/80 border border-white/10 rounded-2xl overflow-hidden">
-                <button
-                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                  className="w-full flex justify-between items-center p-6 text-left hover:bg-white/5 transition-colors"
-                >
-                  <span className="font-bold text-lg text-white tracking-wide">{faq.q}</span>
-                  <motion.div animate={{ rotate: openFaq === index ? 180 : 0 }}>
-                    <ChevronDown size={24} className="text-wager-cyan" />
-                  </motion.div>
-                </button>
-                <AnimatePresence>
-                  {openFaq === index && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="p-6 pt-0 text-zinc-400 font-mono leading-relaxed border-t border-white/5 mt-2">
-                        {faq.a}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
           </div>
         </div>
       </section>

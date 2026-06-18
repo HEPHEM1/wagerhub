@@ -12,6 +12,24 @@ import { HashConnect, HashConnectConnectionState } from "hashconnect";
 import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
+// ─── ONE-TIME CACHE WIPE FOR CORRUPTED PAIRINGS ───────────────────────────────
+if (typeof window !== "undefined") {
+  const isWiped = localStorage.getItem("wc_wiped_v5");
+  if (!isWiped) {
+    console.warn("[WagerWallet] Performing hard wipe of corrupted WalletConnect databases...");
+    localStorage.removeItem("hashconnectData");
+    localStorage.removeItem("walletconnect");
+    try {
+      indexedDB.deleteDatabase("walletconnect-v2.db");
+    } catch (e) {}
+    localStorage.setItem("wc_wiped_v5", "true");
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  }
+}
+
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 // .trim() guards against accidental trailing spaces entered in the Vercel dashboard.
 const WC_PROJECT_ID = (
@@ -46,12 +64,13 @@ export interface WalletContextValue {
   isInitialized: boolean;
   accountId: string | null;
   network: string | null;
+  wagerPoints: number;
   wagerCredits: number;
   balances: WalletBalances;
   error: string | null;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
-  addWagerCredits: (amount: number) => void;
+  addWagerPoints: (amount: number) => void;
   executeTransaction: (
     transaction: Transaction
   ) => Promise<{ txId: string | null; status: string | null } | null>;
@@ -67,12 +86,13 @@ const WalletContext = createContext<WalletContextValue>({
   isInitialized: false,
   accountId: null,
   network: null,
+  wagerPoints: 0,
   wagerCredits: 0,
   balances: defaultBalances,
   error: null,
   connect: async () => {},
   disconnect: async () => {},
-  addWagerCredits: () => {},
+  addWagerPoints: () => {},
   executeTransaction: async () => null,
   refreshBalances: async () => {},
 });
@@ -115,6 +135,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [network] = useState<string | null>("testnet");
+  const [wagerPoints, setWagerPoints] = useState<number>(0);
   const [wagerCredits, setWagerCredits] = useState<number>(0);
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
@@ -136,48 +157,58 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // triggering a re-render. We intentionally do NOT reset it in the cleanup
   // function — resetting would just let Strict Mode fire the double-init again.
   const isInitStarted = useRef(false);
+  const isConnectLocked = useRef(false); // Lock to prevent double-clicks from calling openPairingModal twice
   const initErrorRef = useRef<string | null>(null);
 
-  // Load WagerCredits from localStorage on mount
+  // Load WagerPoints and WagerCredits from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("wagerHub_credits");
-      if (stored) setWagerCredits(parseInt(stored, 10));
+      // Clear legacy wagerHub_credits to force a fresh start per user request
+      localStorage.removeItem("wagerHub_credits");
+
+      const storedPoints = localStorage.getItem("wagerHub_points");
+      const storedCredits = localStorage.getItem("wagerHub_lifetime_credits");
+      
+      if (storedPoints) setWagerPoints(parseInt(storedPoints, 10));
+      if (storedCredits) setWagerCredits(parseFloat(storedCredits));
     } catch (e) {
-      console.warn("[WagerWallet] Could not read wagerHub_credits:", e);
+      console.warn("[WagerWallet] Could not read local storage points/credits:", e);
     }
   }, []);
 
   // ── Bootstrap HashConnect (listeners FIRST, then init — once only) ────────
   useEffect(() => {
-    // ── INITIALIZATION LOCK ───────────────────────────────────────────────────
-    if (isInitStarted.current) return;
-    isInitStarted.current = true;
-    // ─────────────────────────────────────────────────────────────────────────
-
     let isMounted = true;
 
-    hashconnect.pairingEvent.on((pairingData) => {
+    const onPairing = (pairingData: any) => {
       if (!isMounted) return;
       if (pairingData.accountIds?.length > 0) {
         setAccountId(pairingData.accountIds[0].toString());
         setIsConnected(true);
         setError(null);
       }
-    });
+    };
 
-    hashconnect.disconnectionEvent.on(() => {
+    const onDisconnect = () => {
       if (!isMounted) return;
       setAccountId(null);
       setIsConnected(false);
       setBalances(defaultBalances);
       setError(null);
-    });
+    };
 
-    hashconnect.connectionStatusChangeEvent.on((state) => {
+    const onConnectionStatus = (state: HashConnectConnectionState) => {
       if (!isMounted) return;
       setIsConnecting(state === HashConnectConnectionState.Connecting);
-    });
+    };
+
+    hashconnect.pairingEvent.on(onPairing);
+    hashconnect.disconnectionEvent.on(onDisconnect);
+    hashconnect.connectionStatusChangeEvent.on(onConnectionStatus);
+
+    // ── INITIALIZATION LOCK ───────────────────────────────────────────────────
+    if (!isInitStarted.current) {
+      isInitStarted.current = true;
 
     const doInit = async () => {
       try {
@@ -201,9 +232,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     doInit();
+    }
 
     return () => {
       isMounted = false;
+      hashconnect.pairingEvent.off(onPairing);
+      hashconnect.disconnectionEvent.off(onDisconnect);
+      hashconnect.connectionStatusChangeEvent.off(onConnectionStatus);
     };
   }, [hashconnect]);
 
@@ -219,20 +254,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const connect = async () => {
+    if (isConnectLocked.current) return;
+    isConnectLocked.current = true;
     try {
-      setError(null);
+      if (isConnected) return;
       setIsConnecting(true);
+      setError(null);
 
-      // HashConnect v3 has a known race condition where invoking openPairingModal() too quickly
-      // before the extension finishes initializing results in "URI Missing" and a crash.
-      // We must add a mandatory delay to give it time to breathe.
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Force a tiny delay to ensure React state updates and any pending WalletConnect closures resolve
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Use the official public API to open the WalletConnect modal.
       try {
         await hashconnect.openPairingModal("dark", "#0b121c", "#00ffff", "#00ffff", "16px");
       } catch (modalErr: any) {
         console.error("[WagerWallet] openPairingModal failed:", modalErr);
+        
+        // If HashPack says "Pairing already exists", the cache is corrupted. We must clear it.
+        if (modalErr?.message?.includes("Pairing already exists") || modalErr?.message?.includes("URI Missing")) {
+          try {
+            localStorage.removeItem("hashconnectData");
+            localStorage.removeItem("walletconnect");
+            if (typeof indexedDB !== "undefined") {
+              indexedDB.deleteDatabase("walletconnect-v2.db");
+            }
+          } catch (_) {}
+          throw new Error("Stale session detected and cleared. Please refresh the page (Ctrl+F5) and try connecting again.");
+        }
+
         if (initErrorRef.current) {
           throw new Error(`WalletConnect Initialization Error: ${initErrorRef.current}`);
         } else {
@@ -240,11 +289,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // HashConnect's openPairingModal catches its own errors internally and fails silently (logging "URI Missing").
-      // We can detect this silent failure by checking if the pairingString was populated.
-      // NOTE: HashConnect assigns the string literal "undefined testnet" if the URI fails to generate,
-      // which is truthy! We must explicitly check for the word "undefined".
-      if (!hashconnect.pairingString || hashconnect.pairingString.includes("undefined")) {
+      // HashConnect's openPairingModal resolves sometimes before it even connects
+      // We should not eagerly throw if pairingString is undefined because it might
+      // be populated asynchronously by the iframe modal a second later.
+      // We will only throw if it explicitly contains the broken "undefined testnet" string
+      // AND we are certain no connection is happening.
+      if (hashconnect.pairingString && hashconnect.pairingString.trim() === "undefined testnet") {
         try {
           localStorage.removeItem("hashconnectData");
           localStorage.removeItem("walletconnect");
@@ -255,17 +305,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error("WalletConnect session cache is corrupted (URI Missing). We have automatically cleared the cache. Please refresh the page (Ctrl+F5) to connect.");
       }
     } catch (err: any) {
-      const msg = err?.message || "Failed to connect wallet.";
-      if (
-        !msg.includes("EVM") &&
-        !msg.includes("ethereum") &&
-        !msg.includes("MetaMask") &&
-        !msg.includes("already initialized")
-      ) {
-        setError(msg);
-      }
-    } finally {
+      console.error("[WagerWallet] Connection error:", err);
+      setError(err.message || "Failed to connect to HashPack.");
       setIsConnecting(false);
+      // If we failed to connect completely, clear the local cache just in case
+      try {
+        localStorage.removeItem("hashconnectData");
+        localStorage.removeItem("walletconnect");
+        if (typeof indexedDB !== "undefined") {
+          indexedDB.deleteDatabase("walletconnect-v2.db");
+        }
+      } catch (_) {}
+    } finally {
+      isConnectLocked.current = false;
     }
   };
 
@@ -276,25 +328,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setAccountId(null);
       setIsConnected(false);
       setBalances(defaultBalances);
+
+      // Aggressively clear cache on disconnect to prevent future "Pairing already exists" bugs
+      try {
+        localStorage.removeItem("hashconnectData");
+        localStorage.removeItem("walletconnect");
+        if (typeof indexedDB !== "undefined") {
+          indexedDB.deleteDatabase("walletconnect-v2.db");
+        }
+      } catch (_) {}
+
     } catch (err: any) {
       console.warn("[WagerWallet] Disconnect error:", err);
     }
   };
 
-  const addWagerCredits = (amount: number) => {
-    setWagerCredits((prev) => {
-      const newVal = prev + amount;
+  const addWagerPoints = (amount: number) => {
+    setWagerPoints((prev) => {
+      const newPoints = prev + amount;
       try {
-        localStorage.setItem("wagerHub_credits", newVal.toString());
+        localStorage.setItem("wagerHub_points", newPoints.toString());
       } catch (_) {}
+      
+      // Enforce programmatic backend rule: exactly 5% of earned points goes to lifetime credits
+      const creditBonus = amount * 0.05;
+      setWagerCredits((prevCredits) => {
+        const newCredits = prevCredits + creditBonus;
+        try {
+          localStorage.setItem("wagerHub_lifetime_credits", newCredits.toString());
+        } catch (_) {}
+        return newCredits;
+      });
+
       if (accountId) {
         fetch("/api/log-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountId, earnedCredits: amount }),
+          body: JSON.stringify({ accountId, pointsEarned: amount, totalPoints: newPoints }),
         }).catch((err) => console.warn("[WagerWallet] HCS sync failed:", err));
       }
-      return newVal;
+      return newPoints;
     });
   };
 
@@ -405,12 +478,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isInitialized,
         accountId,
         network,
+        wagerPoints,
         wagerCredits,
         balances,
         error,
         connect,
         disconnect,
-        addWagerCredits,
+        addWagerPoints,
         executeTransaction,
         refreshBalances,
       }}

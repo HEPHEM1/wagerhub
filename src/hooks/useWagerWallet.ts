@@ -22,13 +22,14 @@ export function useWagerWallet() {
     isConnecting,
     accountId,
     network,
+    wagerPoints,
     wagerCredits,
     balances,
     error,
     isInitialized,
     connect,
     disconnect,
-    addWagerCredits,
+    addWagerPoints,
     executeTransaction: contextExecuteTransaction,
     refreshBalances,
   } = useWalletContext();
@@ -73,7 +74,10 @@ export function useWagerWallet() {
     /** The network the wallet is connected to, e.g. "testnet" or "mainnet" */
     network,
 
-    /** Global WagerCredits balance */
+    /** Seasonal Leaderboard Points */
+    wagerPoints,
+
+    /** Lifetime WagerCredits balance */
     wagerCredits,
 
     /** Truncated account ID for UI display. */
@@ -94,8 +98,8 @@ export function useWagerWallet() {
     /** Disconnect all active WalletConnect sessions and clear state. */
     disconnect,
 
-    /** Add WagerCredits */
-    addWagerCredits,
+    /** Add WagerPoints (which automatically adds 5% to WagerCredits) */
+    addWagerPoints,
 
     /**
      * Sign and execute any @hashgraph/sdk Transaction using the connected wallet.

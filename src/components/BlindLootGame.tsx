@@ -27,7 +27,7 @@ export default function BlindLootGame({ onClose }: { onClose: () => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCashingOut, setIsCashingOut] = useState(false);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
+  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
@@ -149,6 +149,14 @@ export default function BlindLootGame({ onClose }: { onClose: () => void }) {
 
     if (newBoxes[idx].isMine) {
       setGameState("bust");
+      
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
     } else {
       const newSafeClicks = safeClicks + 1;
       setSafeClicks(newSafeClicks);
@@ -177,6 +185,15 @@ export default function BlindLootGame({ onClose }: { onClose: () => void }) {
       }
 
       setGameState("cashout");
+      
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
+
       setTimeout(() => refreshBalances(), 2000);
     } catch (err) {
       console.error("[BlindLootGame] Cash out error:", err);
@@ -258,18 +275,23 @@ export default function BlindLootGame({ onClose }: { onClose: () => void }) {
                     <span className="text-[11px] font-mono text-wager-lime font-bold">{balances.wager} $WAGER</span>
                   </div>
                   <div className="flex gap-1.5">
-                    {["25", "50", "75", "MAX"].map((percent) => (
+                    {["25", "50", "MAX"].map((p) => (
                       <button
-                        key={percent}
-                        onClick={() => handleQuickSelect(percent)}
-                        disabled={gameState === "playing" || !isConnected}
-                        className="px-2.5 py-1 bg-wager-black border border-white/5 rounded-md text-[10px] font-bold text-zinc-400 hover:text-wager-lime hover:border-wager-lime/30 transition-all disabled:opacity-50"
+                        key={p} onClick={() => handleQuickSelect(p)} disabled={gameState === "playing"}
+                        className="px-2 py-1 bg-wager-charcoal rounded text-[10px] font-bold text-zinc-500 hover:text-wager-lime transition-all"
                       >
-                        {percent === "MAX" ? "MAX" : `${percent}%`}
+                        {p}%
                       </button>
                     ))}
                   </div>
                 </div>
+                {/* Minimum Wager Warning */}
+                {parseFloat(wager) < 10 && (
+                  <div className="text-[10px] text-orange-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
+                    <Target size={10} />
+                    Bet is under 10 $WAGER. 0 Points will be awarded.
+                  </div>
+                )}
               </div>
             </div>
           </div>

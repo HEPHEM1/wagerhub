@@ -19,7 +19,7 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
   const [resultType, setResultType] = useState<"win" | "loss" | null>(null);
   const [payoutAmount, setPayoutAmount] = useState<string>("0");
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
+  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const takeFate = async () => {
     if (!selectedPath || isConfirming) return;
@@ -75,6 +75,10 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
       } else {
         setResultType("loss");
       }
+
+      // Fixed wager is 100 $WAGER, which is >= 10. Award 800 WagerPoints per round.
+      addWagerPoints(800);
+      console.log("🎮 Valid Qualifying Wager (100 $WAGER): Awarded 800 WagerPoints.");
 
       setShowResult(true);
       refreshBalances();

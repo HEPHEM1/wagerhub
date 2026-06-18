@@ -30,7 +30,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
   const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
+  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   // ── Auto-reset after GOAL or SAVED ─────────────────────────────────────────
   useEffect(() => {
@@ -142,6 +142,14 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         });
       }
       
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
+
       [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
     } catch (err: any) {
       const msg = err?.message || "Transaction failed. Check your wallet.";
@@ -236,6 +244,13 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
                   ))}
                 </div>
               </div>
+              {/* Minimum Wager Warning */}
+              {parseFloat(wager) < 10 && (
+                <div className="text-[9px] text-orange-500 font-bold uppercase tracking-widest px-1 flex items-center gap-1 mt-1">
+                  <Footprints size={10} />
+                  Bet is under 10 $WAGER. 0 Points will be awarded.
+                </div>
+              )}
             </div>
             
             <div className="pt-4">

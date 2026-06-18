@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, TrendingDown, Coins, Loader2, ArrowLeft, Target, ShieldAlert, HelpCircle } from "lucide-react";
-import { useWalletContext } from "../context/WalletContext";
+import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
@@ -21,7 +21,7 @@ interface Candle {
 }
 
 export default function TrendRider({ onBack }: { onBack: () => void }) {
-  const { isConnected, accountId, balances, executeTransaction, connect } = useWalletContext();
+  const { isConnected, accountId, balances, executeTransaction, connect, addWagerPoints } = useWagerWallet();
 
   // Core Game State
   const [gameState, setGameState] = useState<"idle" | "active" | "resolved">("idle");
@@ -295,6 +295,16 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       }).catch(err => console.error("Payout API error:", err));
     }
 
+    // Award WagerPoints independently of win/loss
+    const wagerAmount = parseFloat(wager);
+    if (wagerAmount >= 10.00) {
+      addWagerPoints(800);
+      console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+    } else {
+      // Explicitly award 0 points for micro-bets
+      console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+    }
+
     // Reset after 4 seconds
     setTimeout(() => {
       setGameState("idle");
@@ -550,6 +560,13 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
                   ))}
                 </div>
               </div>
+              {/* Minimum Wager Warning */}
+              {parseFloat(wager) < 10 && (
+                <div className="text-[9px] text-orange-500 font-bold uppercase tracking-widest px-1 flex items-center gap-1 mt-1">
+                  <ShieldAlert size={10} />
+                  Bet is under 10 $WAGER. 0 Points will be awarded.
+                </div>
+              )}
             </div>
 
             <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-4"></div>

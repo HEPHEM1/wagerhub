@@ -28,7 +28,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCashingOut, setIsCashingOut] = useState(false);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
+  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
@@ -150,6 +150,14 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
 
     if (newBoxes[idx].isBomb) {
       setGameState("bust");
+      
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
     } else {
       const newSafeClicks = safeClicks + 1;
       setSafeClicks(newSafeClicks);
@@ -190,6 +198,14 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
       }
 
       setGameState("cashout");
+
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
       
       // Hurray Celebration!
       confetti({
@@ -324,6 +340,13 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
                     ))}
                   </div>
                 </div>
+                {/* Minimum Wager Warning */}
+                {parseFloat(wager) < 10 && (
+                  <div className="text-[10px] text-orange-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-1 px-1">
+                    <Coins size={10} />
+                    Bet is under 10 $WAGER. 0 Points will be awarded.
+                  </div>
+                )}
               </div>
             </div>
           </div>

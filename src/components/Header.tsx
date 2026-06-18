@@ -24,22 +24,29 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ── Season 1 timer ─────────────────────────────────────────────────────────
+  // ── Beta Season timer ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const target = new Date();
-    target.setHours(target.getHours() + 48);
-
-    const interval = setInterval(() => {
+    const updateTimer = () => {
       const now = new Date();
+      // Calculate end of the current calendar month
+      const target = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      
       const diff = target.getTime() - now.getTime();
-      if (diff <= 0) { setTimeLeft("00:00:00"); return; }
+      
+      if (diff <= 0) { 
+        setTimeLeft("SEASON ENDED"); 
+        return; 
+      }
+      
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
       const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
       const m = Math.floor((diff / 1000 / 60) % 60);
-      const s = Math.floor((diff / 1000) % 60);
-      setTimeLeft(
-        `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
-      );
-    }, 1000);
+      
+      setTimeLeft(`${d}D ${h}H ${m}M`);
+    };
+
+    updateTimer(); // run immediately
+    const interval = setInterval(updateTimer, 60000); // update every minute
 
     return () => clearInterval(interval);
   }, []);
@@ -52,9 +59,7 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 relative">
-
-
+    <header className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
       {/* Left: Logo */}
       <div className="flex flex-col w-1/3">
         <h1 className="text-2xl font-black tracking-[0.2em] text-white uppercase italic">
@@ -67,7 +72,7 @@ export default function Header() {
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end">
             <span className="text-xs font-bold text-wager-cyan uppercase tracking-widest">
-              Season 1
+              Beta Season
             </span>
             <span className="text-sm font-mono text-white/70">{timeLeft}</span>
           </div>
@@ -145,11 +150,9 @@ export default function Header() {
               {/* Account ID & Balances */}
               <div className="flex flex-col items-end mr-2 text-right">
                 <span className="text-white text-[10px] bg-white/10 px-2 py-0.5 rounded-full mb-1">{accountId}</span>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-right place-items-end">
+                <div className="flex items-center gap-x-3 text-right">
                   <span className="text-wager-lime text-[10px]">{balances.hbar} HBAR</span>
                   <span className="text-wager-cyan text-[10px]">{balances.wager} WAGER</span>
-                  <span className="text-blue-400 text-[10px]">{balances.usdc || "0.00"} USDC</span>
-                  <span className="text-emerald-400 text-[10px]">{balances.usdt || "0.00"} USDT</span>
                 </div>
               </div>
 
@@ -183,6 +186,21 @@ export default function Header() {
                     <p className="text-[10px] font-mono text-zinc-500">
                       {shortAccountId} · Hedera Testnet
                     </p>
+                  </div>
+
+                  {/* Stablecoin Balances */}
+                  <div className="px-2 py-1.5 mb-2 border-b border-white/10 flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">
+                      Balances
+                    </span>
+                    <div className="flex justify-between items-center text-xs font-mono">
+                      <span className="text-blue-400 font-bold">USDC</span>
+                      <span className="text-white">{balances.usdc || "0.00"}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-mono">
+                      <span className="text-emerald-400 font-bold">USDT</span>
+                      <span className="text-white">{balances.usdt || "0.00"}</span>
+                    </div>
                   </div>
 
                   {/* Refresh balances */}

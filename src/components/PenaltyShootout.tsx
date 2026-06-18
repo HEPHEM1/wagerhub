@@ -28,7 +28,7 @@ export default function PenaltyShootout({ onClose }: { onClose: () => void }) {
   const [keeperDives, setKeeperDives] = useState<number[]>([]);
   const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect } = useWagerWallet();
+  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
@@ -110,6 +110,14 @@ export default function PenaltyShootout({ onClose }: { onClose: () => void }) {
         setGameState("goal");
       }
       
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
+
       refreshBalances();
     } catch (err: any) {
       console.error("[PenaltyShootout] Error:", err);
@@ -180,6 +188,13 @@ export default function PenaltyShootout({ onClose }: { onClose: () => void }) {
                   ))}
                 </div>
               </div>
+              {/* Minimum Wager Warning */}
+              {parseFloat(wager) < 10 && (
+                <div className="text-[9px] text-orange-500 font-bold uppercase tracking-widest px-1 flex items-center gap-1 mt-1">
+                  <Footprints size={10} />
+                  Bet is under 10 $WAGER. 0 Points will be awarded.
+                </div>
+              )}
             </div>
           </div>
         </div>
