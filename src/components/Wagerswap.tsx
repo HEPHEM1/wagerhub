@@ -195,8 +195,7 @@ export default function Wagerswap() {
   const route        = getRoute(payToken, receiveToken);
   const isMultiHop   = false;  // No multi-hop in 4-token universe
   const requiresApproval = payToken.type === "erc20" && payToken.symbol !== "$WAGER";
-  const isHopRequired    = false;
-
+  
   const getBalanceForToken = (symbol: string) => {
     switch (symbol) {
       case "HBAR": return balances.hbar || "0.00";
@@ -205,6 +204,10 @@ export default function Wagerswap() {
       case "USDC": return balances.usdc || "0.00";
       default: return "0.00";
     }
+  };
+
+  const getNumericBalance = (symbol: string) => {
+    return parseFloat(getBalanceForToken(symbol)) || 0;
   };
 
   const handleQuickSelect = (percent: string) => {
@@ -222,7 +225,6 @@ export default function Wagerswap() {
     setPayAmount(amount.toFixed(2));
   };
 
-  // ── Association check (single token) ──────────────────────────────────────────────
   const checkTokenAssociation = async (accId: string, tokenIdStr: string): Promise<boolean> => {
     try {
       if (tokenIdStr === "HBAR") return true;
@@ -230,193 +232,89 @@ export default function Wagerswap() {
       const res = await fetch(url);
       if (!res.ok) return false;
       const data = await res.json();
-      const isAssociated = (data?.tokens?.length ?? 0) > 0;
-      console.log(`[Wagerswap] Association check for ${tokenIdStr}:`, isAssociated);
-      return isAssociated;
+      return (data?.tokens?.length ?? 0) > 0;
     } catch (e) {
-      console.log("[Wagerswap] Association check error:", e);
       return false;
     }
   };
 
-  // ── Batch association guardrail (loops through entire route) ──────────────────────
   const ensureAllAssociated = async (accId: string, tokensToCheck: Token[]): Promise<void> => {
     const toAssociate: TokenId[] = [];
     for (const token of tokensToCheck) {
       if (token.type === "native" || token.tokenId === "HBAR") continue;
       const associated = await checkTokenAssociation(accId, token.tokenId);
-      if (!associated) {
-        console.log(`[Wagerswap] Queuing association for ${token.symbol} (${token.tokenId})`);
-        toAssociate.push(TokenId.fromString(token.tokenId));
-      }
+      if (!associated) toAssociate.push(TokenId.fromString(token.tokenId));
     }
     if (toAssociate.length === 0) return;
 
     setSwapStatus("associating");
-    console.log(`[Wagerswap] Associating ${toAssociate.length} token(s) in unified tx...`);
     const rawAssocTx = new TokenAssociateTransaction()
       .setAccountId(AccountId.fromString(accId))
       .setTokenIds(toAssociate)
       .setTransactionId(TransactionId.generate(AccountId.fromString(accId)))
-      .setNodeAccountIds([
-        AccountId.fromString("0.0.3"),
-        AccountId.fromString("0.0.4"),
-        AccountId.fromString("0.0.5"),
-      ])
       .freeze();
     const assocRes = await executeTransaction(Transaction.fromBytes(rawAssocTx.toBytes()));
-    if (!assocRes) throw new Error("Token association rejected. Please approve in your wallet and retry.");
-    console.log("[Wagerswap] ✅ Batch association confirmed:", assocRes.txId);
+    if (!assocRes) throw new Error("Token association rejected.");
   };
 
-  // ── Main executeSwap ─────────────────────────────────────────────────────────────────────────
-  const executeSwap = async () => {
-    if (!isConnected || !accountId) {
-      setSwapError("Connect your wallet first.");
-      return;
-    }
-    
-    if (network !== "testnet") {
-      setSwapError(`Network mismatch: Wallet is connected to ${network || "an unknown network"}. Please switch to Hedera Testnet.`);
-      return;
-    }
-
-    if (!payAmount || parseFloat(payAmount) <= 0) {
-      setSwapError("Enter an amount to swap.");
-      return;
-    }
-
+  const handleSwap = async () => {
+    if (!isConnected || !accountId) return;
     setSwapError(null);
     setLastTxId(null);
     setIsProcessing(true);
 
     try {
-      // ── Step 1: ERC-20 approval
       if (requiresApproval && !isApproved) {
-        setSwapStatus("associating");
-        await new Promise((r) => setTimeout(r, 800)); // simulate approval round-trip
+        setSwapStatus("approving");
+        await new Promise((r) => setTimeout(r, 800));
         setIsApproved(true);
         setSwapStatus("idle");
         setIsProcessing(false);
         return;
       }
 
-      // ── Step 2: Batch-check + associate ALL tokens in the route ────────────────
-      const tokensToAssociate = route.slice(1); // everything except the pay token
-      await ensureAllAssociated(accountId, tokensToAssociate);
+      await ensureAllAssociated(accountId, route.slice(1));
 
-      // ── Step 3: Build the swap transaction ──────────────────────────────────
       setSwapStatus("swapping");
       let swapTx = new TransferTransaction();
 
       if (payToken.symbol === "HBAR") {
         const amountInHbar = Hbar.fromString(payAmount);
-        console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")}`);
         swapTx.addHbarTransfer(accountId, amountInHbar.negated())
-              .addHbarTransfer(TREASURY_ID, amountInHbar)
-              .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
+              .addHbarTransfer(TREASURY_ID, amountInHbar);
       } else {
-        // Use TOKEN_DECIMALS map to guarantee correct on-chain scaling
         const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
         const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
-        console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")} | Decimals: ${decimals}`);
-
         swapTx.addTokenTransfer(TokenId.fromString(payToken.tokenId), accountId, -amountInTokens)
-              .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens)
-              .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}${isMultiHop ? " via HBAR" : ""}`);
+              .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens);
       }
 
-      let res;
-      try {
-        res = await executeTransaction(swapTx);
-      } catch (error) {
-        console.error("TRANSACTION FAILURE (Frontend):", error);
-        throw error;
-      }
-      
-      if (!res) {
-        throw new Error("Swap transaction was rejected by the wallet or cancelled.");
-      }
-      
-      const txId = res.txId || "Confirmed (TxId hidden by HashConnect V3)";
+      const res = await executeTransaction(swapTx);
+      if (!res) throw new Error("Swap transaction was rejected.");
 
-      // ── Step 4: Backend Payout ─────────────────────────────────────────────
       setSwapStatus("payout");
-      console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${accountId}`);
-
       const payoutRes = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          accountId, 
-          receiveTokenId: receiveToken.tokenId,
-          receiveAmountStr: receiveAmount,
-          transactionId: res.txId 
-        })
+        body: JSON.stringify({ accountId, receiveTokenId: receiveToken.tokenId, receiveAmountStr: receiveAmount, transactionId: res.txId })
       });
 
-      if (!payoutRes.ok) {
-        const data = await payoutRes.json();
-        console.error("BACKEND CRASH REASON:", data.error);
-        throw new Error(`Swap successful, but Backend Payout failed: ${data.error || "Unknown server error"}`);
-      }
+      if (!payoutRes.ok) throw new Error("Payout failed.");
 
-      // ── Step 5: Success & Reward Calculation ───────────────────────────────
-      console.log("[Wagerswap] ✅ Swap & Payout successful. Tx ID:", txId);
+      const usdValue = parseFloat(payAmount) * (pricesUsd[payToken.symbol] || 0);
+      const earned = Math.floor(usdValue * 250);
+      addWagerPoints(earned);
       
-      const usdEquivalentValue = parseFloat(payAmount) * (pricesUsd[payToken.symbol] || 0);
-      const todayGMT = new Date().toISOString().split('T')[0];
-      const lastBonusDate = localStorage.getItem(`wagerHub_daily_bonus_date_${accountId}`);
+      confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
 
-      let earnedPoints = 0;
-
-      if (usdEquivalentValue >= 10.00 && lastBonusDate !== todayGMT) {
-        // Daily $10 Bonus Hit!
-        earnedPoints = 5000;
-        localStorage.setItem(`wagerHub_daily_bonus_date_${accountId}`, todayGMT);
-        console.log(`[Wagerswap] 🏆 MASSIVE BONUS AWARDED! 5,000 Points for first $10+ swap today.`);
-      } else {
-        // Baseline volume reward
-        earnedPoints = Math.floor(usdEquivalentValue * 250);
-        console.log(`[Wagerswap] 🪙 Baseline reward awarded: ${earnedPoints} Points for $${usdEquivalentValue.toFixed(2)} volume.`);
-      }
-
-      addWagerPoints(earnedPoints);
-      
-      confetti({
-        particleCount: 150,
-        spread: 90,
-        origin: { y: 0.6 },
-        colors: ['#FFD700', '#CCFF00', '#00FFFF']
-      });
-
-      // (HCS log-score submission is now automatically handled inside addWagerPoints context)
-
-      setLastEarnedCredits(earnedPoints);
-      setLastTxId(txId);
+      setLastEarnedCredits(earned);
+      setLastTxId(res.txId || "Confirmed");
       setSwapStatus("success");
       setPayAmount("");
       setIsApproved(false);
-
       refreshBalances();
-      setTimeout(() => refreshBalances(), 3000);
-
-    } catch (err: unknown) {
-      console.log("[Wagerswap] ❌ Swap error:", err);
-      let message = "Swap failed. Check console for the Hedera ResponseCode.";
-      if (err instanceof Error) {
-        message = err.message;
-        if (message.includes("TOKEN_NOT_ASSOCIATED_TO_ACCOUNT")) {
-          message = `${receiveToken.symbol} not associated. Please retry — association will be triggered automatically.`;
-        } else if (message.includes("INSUFFICIENT_PAYER_BALANCE")) {
-          message = "Insufficient balance to cover gas + swap amount.";
-        } else if (message.includes("INSUFFICIENT_GAS")) {
-          message = "Gas too low. Contact support — gas is set to " + SWAP_GAS + ".";
-        } else if (message.includes("CONTRACT_REVERT_EXECUTED")) {
-          message = "Router contract reverted. Slippage too high or pool has insufficient liquidity.";
-        }
-      }
-      setSwapError(message);
+    } catch (err: any) {
+      setSwapError(err.message);
       setSwapStatus("error");
     } finally {
       setIsProcessing(false);
@@ -428,13 +326,10 @@ export default function Wagerswap() {
     setReceiveToken(payToken);
     setPayAmount("");
     setIsApproved(false);
-    setSwapError(null);
-    setSwapStatus("idle");
   };
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8">
-      {/* Early Adopter Bonus Banner */}
       <AnimatePresence>
         {!isClaimed && (
           <motion.div 
@@ -464,9 +359,7 @@ export default function Wagerswap() {
         )}
       </AnimatePresence>
 
-      {/* The massive DeFi Terminal card */}
       <div className="relative glass-card p-8 md:p-10 overflow-hidden">
-        {/* Glow effect behind the terminal */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
         
         <div className="flex justify-between items-center mb-10">
@@ -487,7 +380,6 @@ export default function Wagerswap() {
           </div>
         </div>
 
-        {/* Slippage Settings Drawer */}
         <AnimatePresence>
           {isSettingsOpen && (
             <motion.div
@@ -514,10 +406,7 @@ export default function Wagerswap() {
           )}
         </AnimatePresence>
 
-        {/* Massive Input Section */}
         <div className="space-y-4 relative">
-          
-          {/* Pay Input */}
           <div className="bg-wager-black/80 border-2 border-wager-charcoal rounded-3xl p-8 focus-within:border-wager-cyan/50 transition-colors relative z-20 shadow-inner">
             <label className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-4 block">You Pay</label>
             <div className="flex justify-between items-center gap-6">
@@ -528,8 +417,6 @@ export default function Wagerswap() {
                 onChange={(e) => setPayAmount(e.target.value)}
                 className="bg-transparent text-6xl font-mono text-white outline-none placeholder:text-zinc-800 w-full"
               />
-              
-              {/* Pay Token Selector */}
               <div className="relative flex-shrink-0">
                 <button 
                   onClick={() => {
@@ -544,8 +431,6 @@ export default function Wagerswap() {
                   </div>
                   <ChevronDown size={20} className="text-zinc-400" />
                 </button>
-
-                {/* Pay Dropdown Menu */}
                 <AnimatePresence>
                   {isPayTokenSelectorOpen && (
                     <motion.div
@@ -575,8 +460,6 @@ export default function Wagerswap() {
                 </AnimatePresence>
               </div>
             </div>
-            
-            {/* Pay Balance and Quick Selectors */}
             <div className="flex justify-between items-center mt-6 px-1 border-t border-white/5 pt-4">
               <div className="flex items-center gap-1.5 text-white/30 text-[10px] font-bold uppercase tracking-tighter">
                 Balance: <span className="text-white/60 ml-1">{getBalanceForToken(payToken.symbol)} {payToken.symbol}</span>
@@ -595,7 +478,6 @@ export default function Wagerswap() {
             </div>
           </div>
 
-          {/* Massive Swap Icon Button */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
             <button 
               onClick={flipTokens}
@@ -605,7 +487,6 @@ export default function Wagerswap() {
             </button>
           </div>
 
-          {/* Receive Output Section */}
           <div className="bg-wager-black/80 border-2 border-wager-charcoal rounded-3xl p-8 focus-within:border-wager-lime/50 transition-colors relative z-10 shadow-inner">
             <label className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-4 block">You Receive</label>
             <div className="flex justify-between items-center gap-6">
@@ -616,8 +497,6 @@ export default function Wagerswap() {
                 value={receiveAmount}
                 className={`bg-transparent text-6xl font-mono outline-none placeholder:text-zinc-800 w-full ${receiveAmount ? 'text-wager-lime' : 'text-zinc-600'}`}
               />
-              
-              {/* Receive Token Selector */}
               <div className="relative flex-shrink-0">
                 <button 
                   onClick={() => {
@@ -636,8 +515,6 @@ export default function Wagerswap() {
                   </div>
                   <ChevronDown size={20} className="text-zinc-400" />
                 </button>
-
-                {/* Receive Dropdown Menu */}
                 <AnimatePresence>
                   {isReceiveTokenSelectorOpen && (
                     <motion.div
@@ -671,17 +548,13 @@ export default function Wagerswap() {
                 </AnimatePresence>
               </div>
             </div>
-            
-            {/* Receive Balance */}
             <div className="flex items-center mt-6 px-1 border-t border-white/5 pt-4 text-white/30 text-[10px] font-bold uppercase tracking-tighter">
               Balance: <span className="text-wager-lime/60 ml-2">{getBalanceForToken(receiveToken.symbol)} {receiveToken.symbol}</span>
             </div>
           </div>
         </div>
 
-        {/* Live Exchange Rate Ticker */}
         <div className="mt-8 bg-wager-black border border-white/5 rounded-xl overflow-hidden">
-          {/* Top row: live indicator + rate */}
           <div className="px-4 py-3 flex items-center justify-between text-[11px] font-mono text-zinc-400">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
@@ -708,7 +581,6 @@ export default function Wagerswap() {
             </div>
           </div>
 
-          {/* Bottom row: live USD reference prices */}
           <div className="px-4 py-2 border-t border-white/5 bg-white/[0.02] flex items-center justify-between gap-4">
             <span className="text-[9px] text-zinc-600 uppercase tracking-widest font-bold">Ref Prices</span>
             <div className="flex items-center gap-5">
@@ -722,19 +594,6 @@ export default function Wagerswap() {
           </div>
         </div>
 
-        {/* Direct pool label */}
-        <div className="mt-3 px-4 flex items-center justify-between text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
-          <span className="text-cyan-400/60 font-bold">Direct Pool</span>
-          <div className="flex items-center gap-2">
-            <img src={payToken.iconUrl} alt={payToken.symbol} className="w-3 h-3 rounded-full" />
-            <span className="text-white/40">{payToken.symbol}</span>
-            <span className="text-zinc-700">→</span>
-            <img src={receiveToken.iconUrl} alt={receiveToken.symbol} className="w-3 h-3 rounded-full" />
-            <span className="text-wager-lime/60">{receiveToken.symbol}</span>
-          </div>
-        </div>
-
-        {/* Error banner */}
         <AnimatePresence>
           {swapError && (
             <motion.div
@@ -749,7 +608,6 @@ export default function Wagerswap() {
           )}
         </AnimatePresence>
 
-        {/* Success banner */}
         <AnimatePresence>
           {swapStatus === "success" && lastTxId && (
             <motion.div

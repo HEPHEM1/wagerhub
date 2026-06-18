@@ -49,7 +49,9 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden">
-      <Header />
+      <div className="w-full flex-shrink-0 z-50">
+        <Header />
+      </div>
       <div className="flex flex-col flex-1 w-full relative overflow-hidden">
         
         {/* Arcade Mode Overlays */}
