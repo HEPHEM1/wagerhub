@@ -265,7 +265,7 @@ export default function Wagerswap() {
 
     try {
       if (requiresApproval && !isApproved) {
-        setSwapStatus("approving");
+        setSwapStatus("associating");
         await new Promise((r) => setTimeout(r, 800));
         setIsApproved(true);
         setSwapStatus("idle");
