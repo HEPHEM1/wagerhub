@@ -48,9 +48,9 @@ export default function Home() {
   }
 
   return (
-    <>
+    <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden">
       <Header />
-      <div className="flex flex-col flex-1 w-full h-full relative overflow-hidden">
+      <div className="flex flex-col flex-1 w-full relative overflow-hidden">
         
         {/* Arcade Mode Overlays */}
         {activeView === "arcade" && (
@@ -157,7 +157,7 @@ export default function Home() {
         </div>
 
       </div>
-    </>
+    </div>
   );
 }
 
