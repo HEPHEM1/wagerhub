@@ -31,10 +31,7 @@ if (typeof window !== "undefined") {
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// .trim() guards against accidental trailing spaces entered in the Vercel dashboard.
-const WC_PROJECT_ID = (
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "37016fd71f4d35906f67ec93aa5225ec"
-).trim();
+const WC_PROJECT_ID = "37016fd71f4d35906f67ec93aa5225ec";
 
 const WAGER_TOKEN_ID = "0.0.8818191";
 const USDT_TOKEN_ID = (process.env.NEXT_PUBLIC_USDT_TOKEN_ID || "0.0.12345").trim();
