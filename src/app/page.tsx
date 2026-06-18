@@ -49,9 +49,6 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden">
-      <div style={{ padding: 20, background: 'red', color: 'white', zIndex: 99999, fontSize: 24, fontWeight: 'bold' }}>
-        DEBUG BOX: IF YOU SEE THIS, THE DOM IS WORKING!
-      </div>
       <Header />
       <div className="flex flex-col flex-1 w-full relative overflow-hidden">
         
