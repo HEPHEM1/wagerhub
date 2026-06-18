@@ -14,15 +14,24 @@ import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 
 // ─── ONE-TIME CACHE WIPE FOR CORRUPTED PAIRINGS ───────────────────────────────
 if (typeof window !== "undefined") {
-  const isWiped = localStorage.getItem("wc_wiped_v6");
+  const isWiped = localStorage.getItem("wc_wiped_v7");
   if (!isWiped) {
     console.warn("[WagerWallet] Performing hard wipe of corrupted WalletConnect databases...");
-    localStorage.removeItem("hashconnectData");
-    localStorage.removeItem("walletconnect");
+    
+    // Dynamically find and destroy all WalletConnect/HashConnect related keys
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.toLowerCase().includes("walletconnect") || key.toLowerCase().includes("hashconnect") || key.toLowerCase().includes("wc@"))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+
     try {
       indexedDB.deleteDatabase("walletconnect-v2.db");
     } catch (e) {}
-    localStorage.setItem("wc_wiped_v6", "true");
+    localStorage.setItem("wc_wiped_v7", "true");
     setTimeout(() => {
       window.location.reload();
     }, 500);

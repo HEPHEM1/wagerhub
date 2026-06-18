@@ -59,7 +59,7 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
+    <div className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
       {/* Left: Logo */}
       <div className="flex flex-col w-1/3">
         <h1 className="text-2xl font-black tracking-[0.2em] text-white uppercase italic">
@@ -111,7 +111,7 @@ export default function Header() {
         {/* ── Disconnected state ───────────────────────────────────────────── */}
         {!isConnected ? (
           <motion.button
-            id="connect-wallet-btn"
+            id="wgr-btn-1"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={connect}
@@ -141,7 +141,7 @@ export default function Header() {
           /* ── Connected state ──────────────────────────────────────────────── */
           <div className="relative">
             <motion.button
-              id="wallet-info-btn"
+              id="wgr-btn-2"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               onClick={() => setMenuOpen((o) => !o)}
@@ -221,7 +221,7 @@ export default function Header() {
 
                   {/* Disconnect */}
                   <button
-                    id="disconnect-wallet-btn"
+                    id="wgr-btn-3"
                     onClick={async () => { setMenuOpen(false); await disconnect(); }}
                     className="w-full flex items-center gap-2 text-xs font-bold text-wager-red hover:text-white px-2 py-2 rounded-xl hover:bg-wager-red/10 transition-colors"
                   >
@@ -234,6 +234,6 @@ export default function Header() {
           </div>
         )}
       </div>
-    </header>
+    </div>
   );
 }
