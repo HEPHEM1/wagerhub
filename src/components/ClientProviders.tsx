@@ -15,11 +15,11 @@ import dynamic from "next/dynamic";
 import React from "react";
 
 const WalletProviderDynamic = dynamic(
-  () => import("@/context/WalletContext"),
+  () => import("@/context/WalletContext").then((mod) => mod.WalletProvider),
   {
     ssr: false,
     // While the provider is loading, render children unstyled (no flash)
-    loading: () => <>{}</>,
+    loading: () => <>{null}</>,
   }
 );
 
