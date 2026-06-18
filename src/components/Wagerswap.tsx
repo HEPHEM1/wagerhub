@@ -207,6 +207,10 @@ export default function Wagerswap() {
     }
   };
 
+  const getNumericBalance = (symbol: string) => {
+    return parseFloat(getBalanceForToken(symbol)) || 0;
+  };
+
   const handleQuickSelect = (percent: string) => {
     const balString = getBalanceForToken(payToken.symbol);
     const balance = parseFloat(balString);
@@ -774,41 +778,51 @@ export default function Wagerswap() {
 
         {/* Massive Dual-State Action Button */}
         <div className="mt-8">
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            onClick={executeSwap}
-            disabled={!payAmount || isProcessing || !isConnected}
-            className={`w-full font-black uppercase tracking-widest py-6 rounded-3xl transition-all text-2xl flex items-center justify-center gap-3
-              ${!isConnected
-                ? 'bg-wager-charcoal text-zinc-500 cursor-not-allowed border-2 border-white/5'
-                : !payAmount
-                ? 'bg-wager-charcoal text-zinc-600 cursor-not-allowed border-2 border-white/5'
-                : isProcessing
-                ? 'bg-wager-charcoal text-zinc-400 cursor-wait border-2 border-white/10'
-                : (requiresApproval && !isApproved)
-                ? 'bg-amber-400 text-black shadow-[0_0_30px_rgba(251,191,36,0.3)] hover:shadow-[0_0_50px_rgba(251,191,36,0.5)] border-2 border-amber-300'
-                : 'bg-wager-cyan text-black shadow-[0_0_30px_rgba(0,255,255,0.3)] hover:shadow-[0_0_50px_rgba(0,255,255,0.5)] border-2 border-cyan-300'
-              }`}
-          >
-            {!isConnected ? (
-              <>Connect Wallet to Swap</>
-            ) : isProcessing && swapStatus === "associating" ? (
-              <><Loader2 size={24} className="animate-spin" /> Associating {receiveToken.symbol} Token...</>
-            ) : isProcessing && swapStatus === "swapping" ? (
-              <><Loader2 size={24} className="animate-spin" /> Awaiting Wallet Approval...</>
-            ) : isProcessing && swapStatus === "payout" ? (
-              <><Loader2 size={24} className="animate-spin" /> Processing Backend Payout...</>
-            ) : isProcessing ? (
-              <><Loader2 size={24} className="animate-spin" /> Processing...</>
-            ) : requiresApproval && !isApproved ? (
-              <>Approve {payToken.symbol} Contract</>
-            ) : (
-              <>Execute Swap</>
-            )}
-            {isApproved && requiresApproval && !isProcessing && <CheckCircle2 size={28} className="text-black" />}
-          </motion.button>
+          {(() => {
+            const numAmount = parseFloat(payAmount) || 0;
+            const currentBalance = getNumericBalance(payToken.symbol);
+            const isInsufficientBalance = numAmount > currentBalance;
 
+            return (
+              <motion.button
+                whileHover={!isProcessing && !isInsufficientBalance ? { scale: 1.01 } : {}}
+                whileTap={!isProcessing && !isInsufficientBalance ? { scale: 0.99 } : {}}
+                onClick={executeSwap}
+                disabled={!payAmount || isProcessing || !isConnected || isInsufficientBalance}
+                className={`w-full font-black uppercase tracking-widest py-6 rounded-3xl transition-all text-2xl flex items-center justify-center gap-3
+                  ${!isConnected
+                    ? 'bg-wager-charcoal text-zinc-500 cursor-not-allowed border-2 border-white/5'
+                    : !payAmount
+                    ? 'bg-wager-charcoal text-zinc-600 cursor-not-allowed border-2 border-white/5'
+                    : isProcessing
+                    ? 'bg-wager-charcoal text-zinc-400 cursor-wait border-2 border-white/10'
+                    : isInsufficientBalance
+                    ? 'bg-wager-charcoal text-wager-red cursor-not-allowed border-2 border-wager-red/50'
+                    : (requiresApproval && !isApproved)
+                    ? 'bg-amber-400 text-black shadow-[0_0_30px_rgba(251,191,36,0.3)] hover:shadow-[0_0_50px_rgba(251,191,36,0.5)] border-2 border-amber-300'
+                    : 'bg-wager-cyan text-black shadow-[0_0_30px_rgba(0,255,255,0.3)] hover:shadow-[0_0_50px_rgba(0,255,255,0.5)] border-2 border-cyan-300'
+                  }`}
+              >
+                {!isConnected ? (
+                  <>Connect Wallet to Swap</>
+                ) : isInsufficientBalance ? (
+                  <>INSUFFICIENT {payToken.symbol} BALANCE</>
+                ) : isProcessing && swapStatus === "associating" ? (
+                  <><Loader2 size={24} className="animate-spin" /> Associating {receiveToken.symbol} Token...</>
+                ) : isProcessing && swapStatus === "swapping" ? (
+                  <><Loader2 size={24} className="animate-spin" /> Awaiting Wallet Approval...</>
+                ) : isProcessing && swapStatus === "payout" ? (
+                  <><Loader2 size={24} className="animate-spin" /> Processing Backend Payout...</>
+                ) : isProcessing ? (
+                  <><Loader2 size={24} className="animate-spin" /> Processing...</>
+                ) : (requiresApproval && !isApproved) ? (
+                  <>Approve {payToken.symbol}</>
+                ) : (
+                  <>Execute Swap <CheckCircle2 size={28} /></>
+                )}
+              </motion.button>
+            );
+          })()}
           {/* Wallet not connected nudge */}
           {!isConnected && (
             <p className="text-center text-xs font-mono text-zinc-600 mt-3">
