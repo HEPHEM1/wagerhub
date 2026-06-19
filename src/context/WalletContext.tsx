@@ -364,7 +364,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       try {
         await provider.send("wallet_switchEthereumChain", [{ chainId: HEDERA_TESTNET_CHAIN_ID }]);
       } catch (switchError: any) {
-        if (switchError.code === 4902) {
+        const errorMsg = switchError?.message?.toLowerCase() || "";
+        const errorCode = switchError?.code || switchError?.error?.code || switchError?.info?.error?.code;
+        
+        if (errorCode === 4902 || errorMsg.includes("4902") || errorMsg.includes("unrecognized chain id")) {
           await provider.send("wallet_addEthereumChain", [{
             chainId: HEDERA_TESTNET_CHAIN_ID,
             chainName: "Hedera Testnet",
