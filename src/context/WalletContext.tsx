@@ -267,8 +267,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setIsConnecting(true);
       setError(null);
 
-      // Force a tiny delay to ensure React state updates and any pending WalletConnect closures resolve
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // If HashConnect is not yet fully initialized, wait for it to generate the pairing string.
+      let attempts = 0;
+      while (!hashconnect.pairingString && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+
+      if (!hashconnect.pairingString) {
+        throw new Error("WalletConnect took too long to initialize. Please refresh the page and try again.");
+      }
 
       // Use the official public API to open the WalletConnect modal.
       try {

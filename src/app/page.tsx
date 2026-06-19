@@ -48,11 +48,11 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden">
-      <div className="w-full flex-shrink-0 z-50">
+    <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden bg-slate-950">
+      <div className="fixed top-0 left-0 right-0 w-full flex-shrink-0 z-[200]">
         <Header />
       </div>
-      <div className="flex flex-col flex-1 w-full relative overflow-hidden">
+      <div className="flex flex-col flex-1 w-full relative overflow-hidden pt-[76px]">
         
         {/* Arcade Mode Overlays */}
         {activeView === "arcade" && (
