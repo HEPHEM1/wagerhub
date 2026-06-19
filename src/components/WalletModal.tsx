@@ -73,7 +73,7 @@ export default function WalletModal({ isOpen, onClose }: { isOpen: boolean, onCl
               >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-slate-950 rounded-xl p-1.5 shadow-inner">
-                    <img src="https://global.discourse-cdn.com/standard14/uploads/hedera/original/2X/6/6f759c87d46816ea51fb782dece8a8537dbd111a.png" alt="HashPack" className="w-full h-full object-contain" />
+                    <img src="https://cdn.prod.website-files.com/61ce2e4bcaa2660da2bb419e/62e14973c65367120073a891_app-icon.webp" alt="HashPack" className="w-full h-full object-contain" />
                   </div>
                   <span className="text-white font-semibold">HashPack</span>
                 </div>
