@@ -5,6 +5,11 @@ import { useWalletContext } from '@/context/WalletContext';
 
 export default function WalletModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { connect, connectMetaMask, isConnecting } = useWalletContext();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleHashPack = async () => {
     await connect();
@@ -16,15 +21,15 @@ export default function WalletModal({ isOpen, onClose }: { isOpen: boolean, onCl
     onClose();
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
             onClick={onClose}
           />
           <motion.div
@@ -115,4 +120,11 @@ export default function WalletModal({ isOpen, onClose }: { isOpen: boolean, onCl
       )}
     </AnimatePresence>
   );
+
+  if (!mounted) return null;
+  
+  return React.useMemo(() => {
+    const { createPortal } = require('react-dom');
+    return createPortal(modalContent, document.body);
+  }, [modalContent]);
 }
