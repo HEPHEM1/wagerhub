@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 import {
   TokenAssociateTransaction,
@@ -80,7 +81,7 @@ export default function Wagerswap() {
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, balances, network, wagerPoints, addWagerPoints, executeTransaction, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMHbarTransfer, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
 
@@ -311,35 +312,56 @@ export default function Wagerswap() {
 
       // ── Step 3: Build the swap transaction ──────────────────────────────────
       setSwapStatus("swapping");
-      let swapTx = new TransferTransaction();
-
-      if (payToken.symbol === "HBAR") {
-        const amountInHbar = Hbar.fromString(payAmount);
-        console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")}`);
-        swapTx.addHbarTransfer(accountId, amountInHbar.negated())
-              .addHbarTransfer(TREASURY_ID, amountInHbar)
-              .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
-      } else {
-        // Use TOKEN_DECIMALS map to guarantee correct on-chain scaling
-        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
-        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
-        console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")} | Decimals: ${decimals}`);
-
-        swapTx.addTokenTransfer(TokenId.fromString(payToken.tokenId), accountId, -amountInTokens)
-              .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens)
-              .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}${isMultiHop ? " via HBAR" : ""}`);
-      }
-
       let res;
-      try {
-        res = await executeTransaction(swapTx);
-      } catch (error) {
-        console.error("TRANSACTION FAILURE (Frontend):", error);
-        throw error;
+
+      if (walletType === "METAMASK") {
+        if (payToken.symbol === "HBAR") {
+          res = await executeEVMHbarTransfer(
+            EVM_TREASURY_ADDRESS,
+            payAmount
+          );
+        } else {
+          // It's an ERC20 token
+          // Since only WAGER is supported via EVM right now, let's map it.
+          // In a full system, you would look up the EVM address for the payToken.
+          const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+          const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+          res = await executeEVMTransfer(
+            EVM_WAGER_TOKEN_ADDRESS,
+            EVM_TREASURY_ADDRESS,
+            amountInTokens.toString()
+          );
+        }
+      } else {
+        let swapTx = new TransferTransaction();
+
+        if (payToken.symbol === "HBAR") {
+          const amountInHbar = Hbar.fromString(payAmount);
+          console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")}`);
+          swapTx.addHbarTransfer(accountId, amountInHbar.negated())
+                .addHbarTransfer(TREASURY_ID, amountInHbar)
+                .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
+        } else {
+          // Use TOKEN_DECIMALS map to guarantee correct on-chain scaling
+          const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+          const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+          console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")} | Decimals: ${decimals}`);
+
+          swapTx.addTokenTransfer(TokenId.fromString(payToken.tokenId), accountId, -amountInTokens)
+                .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens)
+                .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}${isMultiHop ? " via HBAR" : ""}`);
+        }
+
+        try {
+          res = await executeTransaction(swapTx);
+        } catch (error) {
+          console.error("TRANSACTION FAILURE (Frontend):", error);
+          throw error;
+        }
       }
       
-      if (!res) {
-        throw new Error("Swap transaction was rejected by the wallet or cancelled.");
+      if (!res || res.status !== "SUCCESS") {
+        throw new Error("Swap transaction was rejected by the wallet or failed.");
       }
       
       const txId = res.txId || "Confirmed (TxId hidden by HashConnect V3)";

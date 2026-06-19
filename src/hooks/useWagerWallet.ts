@@ -27,10 +27,14 @@ export function useWagerWallet() {
     balances,
     error,
     isInitialized,
+    walletType,
     connect,
+    connectMetaMask,
     disconnect,
     addWagerPoints,
     executeTransaction: contextExecuteTransaction,
+    executeEVMTransfer,
+    executeEVMHbarTransfer,
     refreshBalances,
   } = useWalletContext();
 
@@ -89,11 +93,17 @@ export function useWagerWallet() {
     /** Whether the wallet provider has fully finished its background initialization */
     isInitialized,
 
+    /** The type of wallet currently connected */
+    walletType,
+
     /** Latest error message, if any. Cleared on next successful action. */
     error,
 
     /** Open the WalletConnect modal (QR or browser extension). */
     connect,
+
+    /** Open the MetaMask connection flow */
+    connectMetaMask,
 
     /** Disconnect all active WalletConnect sessions and clear state. */
     disconnect,
@@ -106,6 +116,8 @@ export function useWagerWallet() {
      * Triggers a wallet approval UI (HashPack popup / Blade sheet / WC modal).
      */
     executeTransaction,
+    executeEVMTransfer,
+    executeEVMHbarTransfer,
 
     /**
      * Re-fetch HBAR and $WAGER balances from the Mirror Node.

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
 import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
@@ -29,8 +30,9 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
   const [keeperZones, setKeeperZones] = useState<number[]>([]);
   const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
+  const [winPulse, setWinPulse] = useState(false);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, connect, executeTransaction, executeEVMTransfer, refreshBalances, addWagerPoints } = useWagerWallet();
 
   // ── Auto-reset after GOAL or SAVED ─────────────────────────────────────────
   useEffect(() => {
@@ -87,37 +89,42 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
 
       // Evaluate shot: Win if NONE of the selected zones are in the keeper zones
       const isLoss = selectedZones.some(z => dives.includes(z));
+      const winAmount = (parseFloat(wager) * 2.0).toFixed(2);
       const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
+      
+      let txId = null;
 
-      if (isLoss) {
-        // Player Lost
+      // 1. Pre-game transfer (take the bet from the user to the treasury)
+      if (walletType === "METAMASK") {
+        const res = await executeEVMTransfer(
+          EVM_WAGER_TOKEN_ADDRESS,
+          EVM_TREASURY_ADDRESS,
+          amountInTokens.toString()
+        );
+        if (res?.status !== "SUCCESS") throw new Error("MetaMask transfer failed.");
+        txId = res.txId;
+      } else {
+        const memo = isLoss ? "Penalty Pro Loss" : "Penalty Pro Win - Verifying...";
         const tx = new TransferTransaction()
           .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
           .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Penalty Pro Loss");
-
+          .setTransactionMemo(memo);
         const res = await executeTransaction(tx);
-        if (!res) throw new Error("Transaction rejected");
-        
+        if (res?.status !== "SUCCESS") throw new Error("HashPack transfer failed.");
+        txId = res.txId;
+      }
+
+      if (isLoss) {
         setIsProcessing(false);
         setGameState("saved");
       } else {
         // Player Won -> 2.0x Multiplier
-        const winAmount = (parseFloat(wager) * 2.0).toFixed(2);
         setLastWinAmount(winAmount);
 
-        // Pre-game transfer
-        const tx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Penalty Pro Win - Verifying...");
-
-        const res = await executeTransaction(tx);
-        if (!res) throw new Error("Transaction rejected");
-
-        // Immediate UI Reveal — unblock the button and show Goal
         setIsProcessing(false);
         setGameState("goal");
+        setWinPulse(true);
+        setTimeout(() => setWinPulse(false), 2000);
 
         // Payout (non-blocking, don't await)
         fetch("/api/payout", {

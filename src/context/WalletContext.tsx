@@ -11,6 +11,8 @@ import React, {
 import { HashConnect, HashConnectConnectionState } from "hashconnect";
 import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
+import { ethers } from "ethers";
+import { EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, HEDERA_TESTNET_CHAIN_ID } from "../evm";
 
 // ─── ONE-TIME CACHE WIPE FOR CORRUPTED PAIRINGS ───────────────────────────────
 if (typeof window !== "undefined") {
@@ -68,6 +70,7 @@ export interface WalletContextValue {
   isConnected: boolean;
   isConnecting: boolean;
   isInitialized: boolean;
+  walletType: "HASHPACK" | "METAMASK" | null;
   accountId: string | null;
   network: string | null;
   wagerPoints: number;
@@ -75,11 +78,14 @@ export interface WalletContextValue {
   balances: WalletBalances;
   error: string | null;
   connect: () => Promise<void>;
+  connectMetaMask: () => Promise<void>;
   disconnect: () => Promise<void>;
   addWagerPoints: (amount: number) => void;
   executeTransaction: (
     transaction: Transaction
   ) => Promise<{ txId: string | null; status: string | null } | null>;
+  executeEVMTransfer: (tokenAddress: string, toAddress: string, amountTokens: string) => Promise<{ txId: string | null; status: string | null } | null>;
+  executeEVMHbarTransfer: (toAddress: string, amountHbar: string) => Promise<{ txId: string | null; status: string | null } | null>;
   refreshBalances: () => Promise<void>;
 }
 
@@ -90,6 +96,7 @@ const WalletContext = createContext<WalletContextValue>({
   isConnected: false,
   isConnecting: true,
   isInitialized: false,
+  walletType: null,
   accountId: null,
   network: null,
   wagerPoints: 0,
@@ -97,9 +104,12 @@ const WalletContext = createContext<WalletContextValue>({
   balances: defaultBalances,
   error: null,
   connect: async () => {},
+  connectMetaMask: async () => {},
   disconnect: async () => {},
   addWagerPoints: () => {},
   executeTransaction: async () => null,
+  executeEVMTransfer: async () => null,
+  executeEVMHbarTransfer: async () => null,
   refreshBalances: async () => {},
 });
 
@@ -139,6 +149,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [walletType, setWalletType] = useState<"HASHPACK" | "METAMASK" | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [network] = useState<string | null>("testnet");
   const [wagerPoints, setWagerPoints] = useState<number>(0);
@@ -335,6 +346,61 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const connectMetaMask = async () => {
+    if (isConnectLocked.current) return;
+    isConnectLocked.current = true;
+    try {
+      setIsConnecting(true);
+      setError(null);
+      if (!(window as any).ethereum) {
+        throw new Error("MetaMask is not installed.");
+      }
+
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      const evmAddress = accounts[0];
+
+      // Switch to Hedera Testnet
+      try {
+        await provider.send("wallet_switchEthereumChain", [{ chainId: HEDERA_TESTNET_CHAIN_ID }]);
+      } catch (switchError: any) {
+        if (switchError.code === 4902) {
+          await provider.send("wallet_addEthereumChain", [{
+            chainId: HEDERA_TESTNET_CHAIN_ID,
+            chainName: "Hedera Testnet",
+            nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 },
+            rpcUrls: ["https://testnet.hashio.io/api"],
+            blockExplorerUrls: ["https://hashscan.io/testnet/"]
+          }]);
+        } else {
+          throw switchError;
+        }
+      }
+
+      // Mirror node lookup to get 0.0.xyz
+      try {
+        const res = await fetch(`${MIRROR_NODE_BASE}/accounts/${evmAddress}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAccountId(data.account);
+        } else {
+          setAccountId(evmAddress);
+        }
+      } catch (e) {
+        setAccountId(evmAddress);
+      }
+      
+      setWalletType("METAMASK");
+      setIsConnected(true);
+    } catch (err: any) {
+      console.error("[WagerWallet] MetaMask connection error:", err);
+      setError(err.message || "Failed to connect MetaMask.");
+    } finally {
+      setIsConnecting(false);
+      isConnectLocked.current = false;
+    }
+  };
+
 
   const disconnect = async () => {
     try {
@@ -397,6 +463,42 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       fetchTokenBalance(accountId, USDC_TOKEN_ID, 6),
     ]);
     setBalances({ hbar: h, wager: w, usdt, usdc });
+  };
+
+  const executeEVMTransfer = async (tokenAddress: string, toAddress: string, amountTokens: string) => {
+    try {
+      if (!(window as any).ethereum) throw new Error("MetaMask not found.");
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+      
+      const tx = await contract.transfer(toAddress, amountTokens);
+      const receipt = await tx.wait();
+      
+      return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
+    } catch (e: any) {
+      console.error("[WagerWallet] executeEVMTransfer error:", e);
+      return { txId: null, status: "FAIL" };
+    }
+  };
+
+  const executeEVMHbarTransfer = async (toAddress: string, amountHbar: string) => {
+    try {
+      if (!(window as any).ethereum) throw new Error("MetaMask not found.");
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      
+      const tx = await signer.sendTransaction({
+        to: toAddress,
+        value: ethers.parseEther(amountHbar)
+      });
+      const receipt = await tx.wait();
+      
+      return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
+    } catch (e: any) {
+      console.error("[WagerWallet] executeEVMHbarTransfer error:", e);
+      return { txId: null, status: "FAIL" };
+    }
   };
 
   const executeTransaction = async (
@@ -490,6 +592,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isConnected,
         isConnecting,
         isInitialized,
+        walletType,
         accountId,
         network,
         wagerPoints,
@@ -497,9 +600,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         balances,
         error,
         connect,
+        connectMetaMask,
         disconnect,
         addWagerPoints,
         executeTransaction,
+        executeEVMTransfer,
+        executeEVMHbarTransfer,
         refreshBalances,
       }}
     >

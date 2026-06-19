@@ -17,6 +17,7 @@
     "@types/matter-js": "^0.20.2",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.4.2",
+    "ethers": "^6.17.0",
     "framer-motion": "^12.38.0",
     "hashconnect": "^3.0.14",
     "lucide-react": "^1.11.0",

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Wallet, ChevronDown, LogOut, RefreshCw, AlertCircle, Link2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
+import WalletModal from "./WalletModal";
 
 export default function Header() {
   const {
@@ -23,6 +24,7 @@ export default function Header() {
   const [timeLeft, setTimeLeft] = useState("00:00:00");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ── Beta Season timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -110,33 +112,35 @@ export default function Header() {
 
         {/* ── Disconnected state ───────────────────────────────────────────── */}
         {!isConnected ? (
-          <motion.button
-            id="wgr-btn-1"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={connect}
-            disabled={isConnecting}
-            className="flex items-center gap-2 bg-wager-charcoal hover:bg-wager-charcoal/80 text-white text-xs font-bold px-5 py-2.5 rounded-full border border-wager-cyan/30 transition-colors shadow-[0_0_15px_rgba(0,255,255,0.1)] disabled:opacity-60 disabled:cursor-wait"
-          >
-            {isConnecting ? (
-              <>
-                <motion.span
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="inline-block"
-                >
-                  <RefreshCw size={14} className="text-wager-cyan" />
-                </motion.span>
-                <span>CONNECTING…</span>
-              </>
-            ) : (
-              <>
-                <Link2 size={16} className="text-wager-cyan" />
-                <span>LINK HASHPACK</span>
-              </>
-            )}
-          </motion.button>
-
+          <>
+            <motion.button
+              id="wgr-btn-1"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsModalOpen(true)}
+              disabled={isConnecting}
+              className="flex items-center gap-2 bg-wager-charcoal hover:bg-wager-charcoal/80 text-white text-xs font-bold px-5 py-2.5 rounded-full border border-wager-cyan/30 transition-colors shadow-[0_0_15px_rgba(0,255,255,0.1)] disabled:opacity-60 disabled:cursor-wait"
+            >
+              {isConnecting ? (
+                <>
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="inline-block"
+                  >
+                    <RefreshCw size={14} className="text-wager-cyan" />
+                  </motion.span>
+                  <span>CONNECTING…</span>
+                </>
+              ) : (
+                <>
+                  <Wallet size={16} className="text-wager-cyan" />
+                  <span>CONNECT WALLET</span>
+                </>
+              )}
+            </motion.button>
+            <WalletModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+          </>
         ) : (
           /* ── Connected state ──────────────────────────────────────────────── */
           <div className="relative">
