@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS, WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID } from "@/constants";
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
 import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI } from "@/evm-contracts";
 import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
@@ -100,7 +100,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         const res = await executeEVMSmartContract(
           MOCK_WAGER_GAMES_ADDRESS,
           WAGER_GAMES_ABI,
-          "playPenaltyShootout",
+          "playPenalty",
           [amountInTokens.toString()]
         );
         if (res?.status !== "SUCCESS") throw new Error("MetaMask contract call failed.");
@@ -112,7 +112,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         const tx = new ContractExecuteTransaction()
           .setContractId(AccountId.fromEvmAddress(0, 0, MOCK_WAGER_GAMES_ADDRESS))
           .setGas(250000)
-          .setFunction("playPenaltyShootout", new ContractFunctionParameters().addUint256(amountInTokens))
+          .setFunction("playPenalty", new ContractFunctionParameters().addUint256(amountInTokens))
           .setTransactionMemo(memo);
           
         const res = await executeTransaction(tx);
