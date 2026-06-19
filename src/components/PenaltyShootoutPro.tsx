@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
-import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS, WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID } from "@/constants";
+import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI } from "@/evm-contracts";
+import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
@@ -32,7 +33,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
   const [txError, setTxError] = useState<string | null>(null);
   const [winPulse, setWinPulse] = useState(false);
 
-  const { isConnected, accountId, walletType, balances, connect, executeTransaction, executeEVMTransfer, refreshBalances, addWagerPoints } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, connect, executeTransaction, executeEVMSmartContract, refreshBalances, addWagerPoints } = useWagerWallet();
 
   // ── Auto-reset after GOAL or SAVED ─────────────────────────────────────────
   useEffect(() => {
@@ -94,23 +95,28 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
       
       let txId = null;
 
-      // 1. Pre-game transfer (take the bet from the user to the treasury)
+      // 1. Execute Smart Contract Game Call
       if (walletType === "METAMASK") {
-        const res = await executeEVMTransfer(
-          EVM_WAGER_TOKEN_ADDRESS,
-          EVM_TREASURY_ADDRESS,
-          amountInTokens.toString()
+        const res = await executeEVMSmartContract(
+          MOCK_WAGER_GAMES_ADDRESS,
+          WAGER_GAMES_ABI,
+          "playPenaltyShootout",
+          [amountInTokens.toString()]
         );
-        if (res?.status !== "SUCCESS") throw new Error("MetaMask transfer failed.");
+        if (res?.status !== "SUCCESS") throw new Error("MetaMask contract call failed.");
         txId = res.txId;
       } else {
         const memo = isLoss ? "Penalty Pro Loss" : "Penalty Pro Win - Verifying...";
-        const tx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
+        
+        // Example mock ContractExecuteTransaction for HashPack
+        const tx = new ContractExecuteTransaction()
+          .setContractId(AccountId.fromEvmAddress(0, 0, MOCK_WAGER_GAMES_ADDRESS))
+          .setGas(250000)
+          .setFunction("playPenaltyShootout", new ContractFunctionParameters().addUint256(amountInTokens))
           .setTransactionMemo(memo);
+          
         const res = await executeTransaction(tx);
-        if (res?.status !== "SUCCESS") throw new Error("HashPack transfer failed.");
+        if (res?.status !== "SUCCESS") throw new Error("HashPack contract call failed.");
         txId = res.txId;
       }
 

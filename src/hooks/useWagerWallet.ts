@@ -35,6 +35,7 @@ export function useWagerWallet() {
     executeTransaction: contextExecuteTransaction,
     executeEVMTransfer,
     executeEVMHbarTransfer,
+    executeEVMSmartContract,
     refreshBalances,
   } = useWalletContext();
 

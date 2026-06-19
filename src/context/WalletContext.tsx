@@ -86,6 +86,7 @@ export interface WalletContextValue {
   ) => Promise<{ txId: string | null; status: string | null } | null>;
   executeEVMTransfer: (tokenAddress: string, toAddress: string, amountTokens: string) => Promise<{ txId: string | null; status: string | null } | null>;
   executeEVMHbarTransfer: (toAddress: string, amountHbar: string) => Promise<{ txId: string | null; status: string | null } | null>;
+  executeEVMSmartContract: (contractAddress: string, abi: any[], functionName: string, args: any[], value?: string) => Promise<{ txId: string | null; status: string | null } | null>;
   refreshBalances: () => Promise<void>;
 }
 
@@ -110,6 +111,7 @@ const WalletContext = createContext<WalletContextValue>({
   executeTransaction: async () => null,
   executeEVMTransfer: async () => null,
   executeEVMHbarTransfer: async () => null,
+  executeEVMSmartContract: async () => null,
   refreshBalances: async () => {},
 });
 
@@ -504,6 +506,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
+    try {
+      if (!(window as any).ethereum) throw new Error("MetaMask not found.");
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(contractAddress, abi, signer);
+      
+      const tx = await contract[functionName](...args, { value: ethers.parseEther(value) });
+      const receipt = await tx.wait();
+      
+      return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
+    } catch (e: any) {
+      console.error("[WagerWallet] executeEVMSmartContract error:", e);
+      return { txId: null, status: "FAIL" };
+    }
+  };
+
   const executeTransaction = async (
     transaction: Transaction
   ): Promise<{ txId: string | null; status: string | null } | null> => {
@@ -609,6 +628,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         executeTransaction,
         executeEVMTransfer,
         executeEVMHbarTransfer,
+        executeEVMSmartContract,
         refreshBalances,
       }}
     >

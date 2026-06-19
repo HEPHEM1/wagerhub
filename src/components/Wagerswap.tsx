@@ -6,6 +6,7 @@ import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Lo
 import confetti from "canvas-confetti";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
+import { MOCK_WAGER_SWAP_POOL_ADDRESS, WAGER_SWAP_POOL_ABI } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 import {
   TokenAssociateTransaction,
@@ -81,7 +82,7 @@ export default function Wagerswap() {
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMHbarTransfer, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
 
@@ -316,14 +317,16 @@ export default function Wagerswap() {
 
       if (walletType === "METAMASK") {
         if (payToken.symbol === "HBAR") {
-          res = await executeEVMHbarTransfer(
-            EVM_TREASURY_ADDRESS,
+          res = await executeEVMSmartContract(
+            MOCK_WAGER_SWAP_POOL_ADDRESS,
+            WAGER_SWAP_POOL_ABI,
+            "swapHbarForWager",
+            [],
             payAmount
           );
         } else {
-          // It's an ERC20 token
-          // Since only WAGER is supported via EVM right now, let's map it.
-          // In a full system, you would look up the EVM address for the payToken.
+          // Token to Token swaps would call another AMM function in the future.
+          // Fallback to legacy transfer for now.
           const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
           const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
           res = await executeEVMTransfer(
@@ -333,14 +336,25 @@ export default function Wagerswap() {
           );
         }
       } else {
-        let swapTx = new TransferTransaction();
-
-        if (payToken.symbol === "HBAR") {
+        if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
+          // HashPack Smart Contract Call (Mocked via ContractExecuteTransaction)
           const amountInHbar = Hbar.fromString(payAmount);
-          console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")}`);
-          swapTx.addHbarTransfer(accountId, amountInHbar.negated())
-                .addHbarTransfer(TREASURY_ID, amountInHbar)
-                .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
+          const swapTx = new ContractExecuteTransaction()
+            .setContractId(AccountId.fromEvmAddress(0, 0, MOCK_WAGER_SWAP_POOL_ADDRESS))
+            .setGas(300000)
+            .setPayableAmount(amountInHbar)
+            .setFunction("swapHbarForWager")
+            .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
+            
+          res = await executeTransaction(swapTx);
+        } else {
+          // Fallback to legacy transfer route for other pairs
+          let swapTx = new TransferTransaction();
+          if (payToken.symbol === "HBAR") {
+            const amountInHbar = Hbar.fromString(payAmount);
+            swapTx.addHbarTransfer(accountId, amountInHbar.negated())
+                  .addHbarTransfer(TREASURY_ID, amountInHbar)
+                  .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
         } else {
           // Use TOKEN_DECIMALS map to guarantee correct on-chain scaling
           const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
