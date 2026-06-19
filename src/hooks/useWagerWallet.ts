@@ -119,6 +119,7 @@ export function useWagerWallet() {
     executeTransaction,
     executeEVMTransfer,
     executeEVMHbarTransfer,
+    executeEVMSmartContract,
 
     /**
      * Re-fetch HBAR and $WAGER balances from the Mirror Node.
