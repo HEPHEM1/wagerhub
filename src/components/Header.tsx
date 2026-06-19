@@ -43,12 +43,13 @@ export default function Header() {
       const d = Math.floor(diff / (1000 * 60 * 60 * 24));
       const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
       const m = Math.floor((diff / 1000 / 60) % 60);
+      const s = Math.floor((diff / 1000) % 60);
       
-      setTimeLeft(`${d}D ${h}H ${m}M`);
+      setTimeLeft(`${d}D ${h}H ${m}M ${s}S`);
     };
 
     updateTimer(); // run immediately
-    const interval = setInterval(updateTimer, 60000); // update every minute
+    const interval = setInterval(updateTimer, 1000); // update every second
 
     return () => clearInterval(interval);
   }, []);
