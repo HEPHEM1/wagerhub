@@ -475,12 +475,15 @@ export default function Wagerswap() {
                   <CheckCircle2 size={20} className="text-cyan-400" />
                 </div>
                 <div>
-                  <h4 className="text-white text-sm font-black tracking-tight uppercase">Early Adopter Bonus</h4>
-                  <p className="text-cyan-400/80 text-[11px] uppercase font-black tracking-tighter">Claim 500 $WAGER Tokens</p>
+                  <h4 className="text-white text-sm font-black tracking-tight uppercase">12-Hourly WagerPoint Claim</h4>
+                  <p className="text-cyan-400/80 text-[11px] uppercase font-black tracking-tighter">Claim your 50 WagerPoints reward</p>
                 </div>
               </div>
               <button 
-                onClick={() => setIsClaimed(true)}
+                onClick={() => {
+                  setIsClaimed(true);
+                  if (isConnected) addWagerPoints(50);
+                }}
                 className="bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/20"
               >
                 CLAIM

@@ -72,7 +72,7 @@ export default function Header() {
       {/* Center: Season Timer & Credits */}
       <div className="w-1/3 flex flex-col items-center opacity-90">
         <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end">
+          <div className="flex flex-col items-center">
             <span className="text-xs font-bold text-wager-cyan uppercase tracking-widest">
               Beta Season
             </span>
@@ -81,7 +81,7 @@ export default function Header() {
           
           <div className="w-px h-8 bg-wager-charcoal/50 mx-2"></div>
           
-          <div className="flex flex-col items-start">
+          <div className="flex flex-col items-center">
             <span className="text-xs font-bold text-[#FFD700] uppercase tracking-widest drop-shadow-[0_0_8px_rgba(255,215,0,0.6)]">
               WagerCredits
             </span>
