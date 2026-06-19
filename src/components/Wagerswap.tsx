@@ -276,7 +276,7 @@ export default function Wagerswap() {
   // ── Main executeSwap ─────────────────────────────────────────────────────────────────────────
   const executeSwap = async () => {
     if (!isConnected || !accountId) {
-      setSwapError("Connect your wallet first.");
+      setSwapError("Link HashPack first.");
       return;
     }
     
@@ -804,7 +804,7 @@ export default function Wagerswap() {
                   }`}
               >
                 {!isConnected ? (
-                  <>Connect Wallet to Swap</>
+                  <>Link HashPack to Swap</>
                 ) : isInsufficientBalance ? (
                   <>INSUFFICIENT {payToken.symbol} BALANCE</>
                 ) : isProcessing && swapStatus === "associating" ? (
@@ -826,7 +826,7 @@ export default function Wagerswap() {
           {/* Wallet not connected nudge */}
           {!isConnected && (
             <p className="text-center text-xs font-mono text-zinc-600 mt-3">
-              Connect your wallet via the header to enable swaps
+              Link HashPack via the top menu to enable swaps
             </p>
           )}
         </div>

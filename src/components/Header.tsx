@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wallet, ChevronDown, LogOut, RefreshCw, AlertCircle } from "lucide-react";
+import { Wallet, ChevronDown, LogOut, RefreshCw, AlertCircle, Link2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 
@@ -131,8 +131,8 @@ export default function Header() {
               </>
             ) : (
               <>
-                <Wallet size={16} className="text-wager-cyan" />
-                <span>CONNECT WALLET</span>
+                <Link2 size={16} className="text-wager-cyan" />
+                <span>LINK HASHPACK</span>
               </>
             )}
           </motion.button>
@@ -221,12 +221,14 @@ export default function Header() {
 
                   {/* Disconnect */}
                   <button
-                    id="wgr-btn-3"
-                    onClick={async () => { setMenuOpen(false); await disconnect(); }}
-                    className="w-full flex items-center gap-2 text-xs font-bold text-wager-red hover:text-white px-2 py-2 rounded-xl hover:bg-wager-red/10 transition-colors"
+                    onClick={() => {
+                      disconnect();
+                      setMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-wager-red font-bold hover:bg-wager-red/10 transition-colors"
                   >
-                    <LogOut size={14} />
-                    Disconnect Wallet
+                    <LogOut size={16} />
+                    Unlink HashPack
                   </button>
                 </motion.div>
               )}
