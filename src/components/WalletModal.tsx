@@ -123,8 +123,6 @@ export default function WalletModal({ isOpen, onClose }: { isOpen: boolean, onCl
 
   if (!mounted) return null;
   
-  return React.useMemo(() => {
-    const { createPortal } = require('react-dom');
-    return createPortal(modalContent, document.body);
-  }, [modalContent]);
+  const { createPortal } = require('react-dom');
+  return createPortal(modalContent, document.body);
 }
