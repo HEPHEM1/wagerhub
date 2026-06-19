@@ -320,8 +320,8 @@ export default function Wagerswap() {
           res = await executeEVMSmartContract(
             MOCK_WAGER_SWAP_POOL_ADDRESS,
             WAGER_SWAP_POOL_ABI,
-            "swapHbarForWager",
-            [],
+            "swapHbarForToken",
+            ["WAGER"],
             payAmount
           );
         } else {
@@ -340,10 +340,10 @@ export default function Wagerswap() {
           // HashPack Smart Contract Call (Mocked via ContractExecuteTransaction)
           const amountInHbar = Hbar.fromString(payAmount);
           const swapTx = new ContractExecuteTransaction()
-            .setContractId(AccountId.fromEvmAddress(0, 0, MOCK_WAGER_SWAP_POOL_ADDRESS))
+            .setContractId(ContractId.fromEvmAddress(0, 0, MOCK_WAGER_SWAP_POOL_ADDRESS))
             .setGas(300000)
             .setPayableAmount(amountInHbar)
-            .setFunction("swapHbarForWager")
+            .setFunction("swapHbarForToken", new ContractFunctionParameters().addString("WAGER"))
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
           res = await executeTransaction(swapTx);
@@ -372,6 +372,7 @@ export default function Wagerswap() {
           console.error("TRANSACTION FAILURE (Frontend):", error);
           throw error;
         }
+        } // close inner else
       }
       
       if (!res || res.status !== "SUCCESS") {

@@ -6,7 +6,7 @@ import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, H
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
 import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI } from "@/evm-contracts";
-import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId } from "@hashgraph/sdk";
+import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId, ContractId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
@@ -110,7 +110,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         
         // Example mock ContractExecuteTransaction for HashPack
         const tx = new ContractExecuteTransaction()
-          .setContractId(AccountId.fromEvmAddress(0, 0, MOCK_WAGER_GAMES_ADDRESS))
+          .setContractId(ContractId.fromEvmAddress(0, 0, MOCK_WAGER_GAMES_ADDRESS))
           .setGas(250000)
           .setFunction("playPenalty", new ContractFunctionParameters().addUint256(amountInTokens))
           .setTransactionMemo(memo);
