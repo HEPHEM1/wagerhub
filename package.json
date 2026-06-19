@@ -21,18 +21,18 @@
     "hashconnect": "^3.0.14",
     "lucide-react": "^1.11.0",
     "matter-js": "^0.20.0",
-    "next": "16.2.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "next": "14.2.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "tsparticles": "^3.9.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
