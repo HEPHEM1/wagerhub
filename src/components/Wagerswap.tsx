@@ -6,7 +6,7 @@ import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Lo
 import confetti from "canvas-confetti";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
-import { MOCK_WAGER_SWAP_POOL_ADDRESS, WAGER_SWAP_POOL_ABI } from "@/evm-contracts";
+import { MOCK_WAGER_SWAP_POOL_ADDRESS, WAGER_SWAP_POOL_ABI, WAGER_SWAP_POOL_HEDERA_ID } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 import {
   TokenAssociateTransaction,
@@ -340,7 +340,7 @@ export default function Wagerswap() {
           // HashPack Smart Contract Call (Mocked via ContractExecuteTransaction)
           const amountInHbar = Hbar.fromString(payAmount);
           const swapTx = new ContractExecuteTransaction()
-            .setContractId(ContractId.fromEvmAddress(0, 0, MOCK_WAGER_SWAP_POOL_ADDRESS))
+            .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
             .setGas(300000)
             .setPayableAmount(amountInHbar)
             .setFunction("swapHbarForToken", new ContractFunctionParameters().addString("WAGER"))
