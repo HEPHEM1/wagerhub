@@ -111,7 +111,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         // HashPack Smart Contract Call via Raw ABI Encoding
         const iface = new ethers.Interface(WAGER_GAMES_ABI);
         const encoded = iface.encodeFunctionData("playPenalty", [amountInTokens.toString()]);
-        const rawParams = Buffer.from(encoded.slice(2), "hex");
+        const rawParams = ethers.getBytes(encoded);
 
         const tx = new ContractExecuteTransaction()
           .setContractId(ContractId.fromString(WAGER_GAMES_HEDERA_ID))

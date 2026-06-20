@@ -341,7 +341,7 @@ export default function Wagerswap() {
           const amountInHbar = Hbar.fromString(payAmount);
           const iface = new ethers.Interface(WAGER_SWAP_POOL_ABI);
           const encoded = iface.encodeFunctionData("swapHbarForToken", ["WAGER"]);
-          const rawParams = Buffer.from(encoded.slice(2), "hex");
+          const rawParams = ethers.getBytes(encoded);
 
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
