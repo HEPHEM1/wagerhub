@@ -545,7 +545,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             AccountId.fromString("0.0.5"),
           ]);
         }
-        transaction.setMaxTransactionFee(Hbar.fromTinybars(2_000_000));
+        transaction.setMaxTransactionFee(new Hbar(10));
         transaction.freeze();
       }
 
