@@ -7,6 +7,7 @@ import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
 import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI, WAGER_GAMES_HEDERA_ID } from "@/evm-contracts";
 import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId, ContractId } from "@hashgraph/sdk";
+import { ethers } from "ethers";
 import confetti from "canvas-confetti";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
