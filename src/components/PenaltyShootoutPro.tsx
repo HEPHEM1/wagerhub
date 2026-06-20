@@ -115,7 +115,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
 
         const tx = new ContractExecuteTransaction()
           .setContractId(ContractId.fromString(WAGER_GAMES_HEDERA_ID))
-          .setGas(250000)
+          .setGas(2000000)
           .setFunctionParameters(rawParams)
           .setTransactionMemo(memo);
           

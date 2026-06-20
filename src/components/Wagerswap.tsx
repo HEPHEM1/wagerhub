@@ -345,7 +345,7 @@ export default function Wagerswap() {
 
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
-            .setGas(300000)
+            .setGas(2000000)
             .setPayableAmount(amountInHbar)
             .setFunctionParameters(rawParams)
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
