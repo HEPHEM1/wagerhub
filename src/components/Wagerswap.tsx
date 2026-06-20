@@ -337,13 +337,17 @@ export default function Wagerswap() {
         }
       } else {
         if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
-          // HashPack Smart Contract Call (Mocked via ContractExecuteTransaction)
+          // HashPack Smart Contract Call via Raw ABI Encoding
           const amountInHbar = Hbar.fromString(payAmount);
+          const iface = new ethers.Interface(WAGER_SWAP_POOL_ABI);
+          const encoded = iface.encodeFunctionData("swapHbarForToken", ["WAGER"]);
+          const rawParams = Buffer.from(encoded.slice(2), "hex");
+
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
             .setGas(300000)
             .setPayableAmount(amountInHbar)
-            .setFunction("swapHbarForToken", new ContractFunctionParameters().addString("WAGER"))
+            .setFunctionParameters(rawParams)
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
           res = await executeTransaction(swapTx);

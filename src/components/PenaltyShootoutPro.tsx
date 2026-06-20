@@ -108,11 +108,15 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
       } else {
         const memo = isLoss ? "Penalty Pro Loss" : "Penalty Pro Win - Verifying...";
         
-        // Example mock ContractExecuteTransaction for HashPack
+        // HashPack Smart Contract Call via Raw ABI Encoding
+        const iface = new ethers.Interface(WAGER_GAMES_ABI);
+        const encoded = iface.encodeFunctionData("playPenalty", [amountInTokens.toString()]);
+        const rawParams = Buffer.from(encoded.slice(2), "hex");
+
         const tx = new ContractExecuteTransaction()
           .setContractId(ContractId.fromString(WAGER_GAMES_HEDERA_ID))
           .setGas(250000)
-          .setFunction("playPenalty", new ContractFunctionParameters().addUint256(amountInTokens))
+          .setFunctionParameters(rawParams)
           .setTransactionMemo(memo);
           
         const res = await executeTransaction(tx);
