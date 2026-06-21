@@ -6,7 +6,7 @@ import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Lo
 import confetti from "canvas-confetti";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
-import { MOCK_WAGER_SWAP_POOL_ADDRESS, WAGER_SWAP_POOL_ABI, WAGER_SWAP_POOL_HEDERA_ID } from "@/evm-contracts";
+import { MOCK_WAGER_SWAP_POOL_ADDRESS, WAGER_SWAP_POOL_ABI, WAGER_SWAP_POOL_HEDERA_ID, getCleanFunctionBytes } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 import {
   TokenAssociateTransaction,
@@ -339,14 +339,18 @@ export default function Wagerswap() {
         if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
           // HashPack Smart Contract Call via Raw ABI Encoding
           const amountInHbar = Hbar.fromString(payAmount);
+          const iface = new ethers.Interface(WAGER_SWAP_POOL_ABI);
+          const encoded = iface.encodeFunctionData("swapHbarForWager");
+          const cleanBytes = getCleanFunctionBytes(encoded);
+
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
             .setGas(5000000)
             .setPayableAmount(amountInHbar)
-            .setFunction("swapHbarForWager")
+            .setFunctionParameters(cleanBytes)
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
-          console.log("[WagerSwap] Executing V6 Swap with 5M gas...");
+          console.log("[WagerSwap] Executing V7 Swap with 5M gas...");
           res = await executeTransaction(swapTx);
         } else {
           // Fallback to legacy transfer route for other pairs

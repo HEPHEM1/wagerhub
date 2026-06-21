@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
-import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI, WAGER_GAMES_HEDERA_ID } from "@/evm-contracts";
+import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI, WAGER_GAMES_HEDERA_ID, getCleanFunctionBytes } from "@/evm-contracts";
 import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId, ContractId } from "@hashgraph/sdk";
 import { ethers } from "ethers";
 import confetti from "canvas-confetti";
@@ -109,13 +109,18 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
       } else {
         const memo = isLoss ? "Penalty Pro Loss" : "Penalty Pro Win - Verifying...";
         
+        // HashPack Smart Contract Call via Raw ABI Encoding
+        const iface = new ethers.Interface(WAGER_GAMES_ABI);
+        const encoded = iface.encodeFunctionData("playPenalty", [amountInTokens.toString()]);
+        const cleanBytes = getCleanFunctionBytes(encoded);
+
         const tx = new ContractExecuteTransaction()
           .setContractId(ContractId.fromString(WAGER_GAMES_HEDERA_ID))
           .setGas(5000000)
-          .setFunction("playPenalty", new ContractFunctionParameters().addUint256(amountInTokens))
+          .setFunctionParameters(cleanBytes)
           .setTransactionMemo(memo);
           
-        console.log("[PenaltyPro] Executing V3 Game with 5M gas...");
+        console.log("[PenaltyPro] Executing V4 Game with 5M gas...");
         const res = await executeTransaction(tx);
         if (res?.status !== "SUCCESS") throw new Error("HashPack contract call failed.");
         txId = res.txId;
