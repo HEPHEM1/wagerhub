@@ -341,7 +341,7 @@ export default function Wagerswap() {
           const amountInHbar = Hbar.fromString(payAmount);
           const iface = new ethers.Interface(WAGER_SWAP_POOL_ABI);
           const encoded = iface.encodeFunctionData("swapHbarForToken", ["WAGER"]);
-          const rawParams = ethers.getBytes(encoded);
+          const rawParams = Buffer.from(encoded.slice(2), "hex");
 
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
@@ -350,7 +350,7 @@ export default function Wagerswap() {
             .setFunctionParameters(rawParams)
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
-          console.log("[WagerSwap] Executing V3 Swap with 5M gas...");
+          console.log("[WagerSwap] Executing V4 Swap with 5M gas...");
           res = await executeTransaction(swapTx);
         } else {
           // Fallback to legacy transfer route for other pairs
