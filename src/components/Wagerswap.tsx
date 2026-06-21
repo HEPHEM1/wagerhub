@@ -343,10 +343,10 @@ export default function Wagerswap() {
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
             .setGas(5000000)
             .setPayableAmount(amountInHbar)
-            .setFunction("swapHbarForToken", new ContractFunctionParameters().addString("WAGER"))
+            .setFunction("swapHbarForWager")
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
-          console.log("[WagerSwap] Executing V5 Swap with 5M gas...");
+          console.log("[WagerSwap] Executing V6 Swap with 5M gas...");
           res = await executeTransaction(swapTx);
         } else {
           // Fallback to legacy transfer route for other pairs

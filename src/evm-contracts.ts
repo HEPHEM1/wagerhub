@@ -6,7 +6,7 @@ export const WAGER_SWAP_POOL_HEDERA_ID = "0.0.9289511";
 export const WAGER_GAMES_HEDERA_ID = "0.0.9290337";
 
 export const WAGER_SWAP_POOL_ABI = [
-  "function swapHbarForToken(string tokenOut) external payable",
+  "function swapHbarForWager() external payable",
   "function swapTokenForHbar(string tokenIn, uint256 amountIn) external",
   "function swapTokenForToken(string tokenIn, string tokenOut, uint256 amountIn) external",
   "function withdrawHbar() external",
