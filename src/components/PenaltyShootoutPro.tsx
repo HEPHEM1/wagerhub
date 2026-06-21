@@ -116,10 +116,11 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
 
         const tx = new ContractExecuteTransaction()
           .setContractId(ContractId.fromString(WAGER_GAMES_HEDERA_ID))
-          .setGas(2000000)
+          .setGas(5000000)
           .setFunctionParameters(rawParams)
           .setTransactionMemo(memo);
           
+        console.log("[PenaltyPro] Executing V3 Game with 5M gas...");
         const res = await executeTransaction(tx);
         if (res?.status !== "SUCCESS") throw new Error("HashPack contract call failed.");
         txId = res.txId;
