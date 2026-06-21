@@ -339,18 +339,14 @@ export default function Wagerswap() {
         if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
           // HashPack Smart Contract Call via Raw ABI Encoding
           const amountInHbar = Hbar.fromString(payAmount);
-          const iface = new ethers.Interface(WAGER_SWAP_POOL_ABI);
-          const encoded = iface.encodeFunctionData("swapHbarForToken", ["WAGER"]);
-          const rawParams = Buffer.from(encoded.slice(2), "hex");
-
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
             .setGas(5000000)
             .setPayableAmount(amountInHbar)
-            .setFunctionParameters(rawParams)
+            .setFunction("swapHbarForToken", new ContractFunctionParameters().addString("WAGER"))
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
-          console.log("[WagerSwap] Executing V4 Swap with 5M gas...");
+          console.log("[WagerSwap] Executing V5 Swap with 5M gas...");
           res = await executeTransaction(swapTx);
         } else {
           // Fallback to legacy transfer route for other pairs
