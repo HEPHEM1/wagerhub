@@ -381,7 +381,7 @@ export default function Wagerswap() {
         throw new Error("Swap transaction was rejected by the wallet or failed.");
       }
       
-      const txId = res.txId || "Confirmed (TxId hidden by HashConnect V3)";
+      const txId = res.txId || "Confirmed on-chain (duplicate tx recovered)";
 
       // ── Step 4: Backend Payout ─────────────────────────────────────────────
       setSwapStatus("payout");

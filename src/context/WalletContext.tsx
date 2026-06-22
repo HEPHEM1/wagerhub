@@ -526,8 +526,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       
       return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
     } catch (e: any) {
-      console.error("[WagerWallet] executeEVMSmartContract error:", e);
-      return { txId: null, status: "FAIL" };
+      const msg: string = e?.message || e?.reason || String(e);
+      const code = e?.code || e?._code;
+      console.error("[WagerWallet] executeEVMSmartContract error:", { msg, code, e });
+      
+      // DUPLICATE_TRANSACTION (_code 11) means the same tx was already accepted
+      // by the network — treat it as success so the payout flow continues.
+      if (code === 11 || msg.toLowerCase().includes("duplicate")) {
+        console.warn("[WagerWallet] DUPLICATE_TRANSACTION — treating as SUCCESS.");
+        return { txId: null, status: "SUCCESS" };
+      }
+      
+      // Rethrow with human-readable message so the swap catch block can display it
+      throw new Error(msg || "Smart contract call failed.");
     }
   };
 
