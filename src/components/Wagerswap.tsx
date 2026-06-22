@@ -337,19 +337,19 @@ export default function Wagerswap() {
         }
       } else {
         if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
-          // HashPack Smart Contract Call via HashConnectSigner
-          // No manual freeze/TransactionId needed — freezeWithSigner handles it
+          // ── HBAR → $WAGER via Treasury Transfer ──────────────────────────────
+          // The user sends HBAR directly to the treasury wallet.
+          // The backend payout API then sends the equivalent $WAGER tokens back.
+          // This uses a simple TransferTransaction which is fully reliable with
+          // HashPack + HashConnect v3, avoiding all ContractExecuteTransaction
+          // protobuf serialization bugs.
           const amountInHbar = Hbar.fromString(payAmount);
-
-          const swapTx = new ContractExecuteTransaction()
-            .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
-            .setGas(5000000)
-            .setMaxTransactionFee(new Hbar(10))
-            .setPayableAmount(amountInHbar)
-            .setFunction("swapHbarForWager")
-            .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
+          const swapTx = new TransferTransaction()
+            .addHbarTransfer(accountId, amountInHbar.negated())
+            .addHbarTransfer(TREASURY_ID, amountInHbar)
+            .setTransactionMemo(`WagerHub: Swap HBAR → $WAGER`);
             
-          console.log("[WagerSwap] Executing V8 Swap via getSigner()...");
+          console.log("[WagerSwap] Executing HBAR→WAGER via TransferTransaction...");
           res = await executeTransaction(swapTx);
         } else {
           // Fallback to legacy transfer route for other pairs
