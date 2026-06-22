@@ -337,20 +337,18 @@ export default function Wagerswap() {
         }
       } else {
         if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
-          // ── HBAR → $WAGER via Treasury Transfer ──────────────────────────────
-          // The user sends HBAR directly to the treasury wallet.
-          // The backend payout API then sends the equivalent $WAGER tokens back.
-          // This uses a simple TransferTransaction which is fully reliable with
-          // HashPack + HashConnect v3, avoiding all ContractExecuteTransaction
-          // protobuf serialization bugs.
-          const amountInHbar = Hbar.fromString(payAmount);
-          const swapTx = new TransferTransaction()
-            .addHbarTransfer(accountId, amountInHbar.negated())
-            .addHbarTransfer(TREASURY_ID, amountInHbar)
-            .setTransactionMemo(`WagerHub: Swap HBAR → $WAGER`);
-            
-          console.log("[WagerSwap] Executing HBAR→WAGER via TransferTransaction...");
-          res = await executeTransaction(swapTx);
+          // ── HBAR → $WAGER via Smart Contract (EVM path — works for ALL wallets) ──
+          // We use window.ethereum (injected by HashPack AND MetaMask) to call
+          // swapHbarForWager() directly on the Hedera EVM. This completely bypasses
+          // the Hedera SDK's ContractExecuteTransaction protobuf serialization bug.
+          console.log("[WagerSwap] Executing HBAR→WAGER via EVM SmartContract...");
+          res = await executeEVMSmartContract(
+            MOCK_WAGER_SWAP_POOL_ADDRESS,
+            WAGER_SWAP_POOL_ABI,
+            "swapHbarForWager",
+            [],
+            payAmount   // HBAR amount (ethers.parseEther converts to weibars for Hedera EVM)
+          );
         } else {
           // Fallback to legacy transfer route for other pairs
           let swapTx = new TransferTransaction();

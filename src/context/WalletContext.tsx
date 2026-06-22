@@ -508,12 +508,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
     try {
-      if (!(window as any).ethereum) throw new Error("MetaMask not found.");
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      // HashPack injects window.ethereum just like MetaMask.
+      // We use it here to call smart contracts on the Hedera EVM directly,
+      // bypassing the Hedera SDK's ContractExecuteTransaction protobuf issues.
+      const injectedProvider = (window as any).ethereum;
+      if (!injectedProvider) throw new Error("No EVM provider found. Please ensure HashPack or MetaMask is installed and connected.");
+      
+      const provider = new ethers.BrowserProvider(injectedProvider);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(contractAddress, abi, signer);
       
-      const tx = await contract[functionName](...args, { value: ethers.parseEther(value) });
+      // On Hedera EVM, 1 HBAR = 10^18 weibars (same ratio as ETH/wei on Ethereum)
+      // so ethers.parseEther("100") correctly represents 100 HBAR
+      const txOptions = value && value !== "0" ? { value: ethers.parseEther(value) } : {};
+      const tx = await contract[functionName](...args, txOptions);
       const receipt = await tx.wait();
       
       return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
