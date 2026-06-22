@@ -520,7 +520,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       
       // On Hedera EVM, 1 HBAR = 10^18 weibars (same ratio as ETH/wei on Ethereum)
       // so ethers.parseEther("100") correctly represents 100 HBAR
-      const txOptions = value && value !== "0" ? { value: ethers.parseEther(value) } : {};
+      // We MUST explicitly set gasLimit, otherwise the wallet defaults to a low amount causing INSUFFICIENT_GAS
+      const txOptions: any = { gasLimit: 5000000 };
+      if (value && value !== "0") {
+        txOptions.value = ethers.parseEther(value);
+      }
+      
       const tx = await contract[functionName](...args, txOptions);
       const receipt = await tx.wait();
       
