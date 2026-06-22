@@ -337,20 +337,19 @@ export default function Wagerswap() {
         }
       } else {
         if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
-          // HashPack Smart Contract Call via Raw ABI Encoding
+          // HashPack Smart Contract Call via HashConnectSigner
+          // No manual freeze/TransactionId needed — freezeWithSigner handles it
           const amountInHbar = Hbar.fromString(payAmount);
-          const iface = new ethers.Interface(WAGER_SWAP_POOL_ABI);
-          const encoded = iface.encodeFunctionData("swapHbarForWager");
-          const cleanBytes = getCleanFunctionBytes(encoded);
 
           const swapTx = new ContractExecuteTransaction()
             .setContractId(ContractId.fromString(WAGER_SWAP_POOL_HEDERA_ID))
             .setGas(5000000)
+            .setMaxTransactionFee(new Hbar(10))
             .setPayableAmount(amountInHbar)
-            .setFunctionParameters(cleanBytes)
+            .setFunction("swapHbarForWager")
             .setTransactionMemo(`WagerHub: Swap ${payToken.symbol} → ${receiveToken.symbol}`);
             
-          console.log("[WagerSwap] Executing V7 Swap with 5M gas...");
+          console.log("[WagerSwap] Executing V8 Swap via getSigner()...");
           res = await executeTransaction(swapTx);
         } else {
           // Fallback to legacy transfer route for other pairs

@@ -9,7 +9,7 @@ import React, {
   ReactNode,
 } from "react";
 import { HashConnect, HashConnectConnectionState } from "hashconnect";
-import { LedgerId, Transaction, TransactionId, AccountId, Hbar } from "@hashgraph/sdk";
+import { LedgerId, Transaction, AccountId, Hbar } from "@hashgraph/sdk";
 import { transactionToBase64String } from "@hashgraph/hedera-wallet-connect";
 import { ethers } from "ethers";
 import { EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, HEDERA_TESTNET_CHAIN_ID } from "../evm";
@@ -534,20 +534,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const accountIdObj = AccountId.fromString(accountId);
 
-      if (!transaction.isFrozen()) {
-        if (!transaction.transactionId) {
-          transaction.setTransactionId(TransactionId.generate(accountIdObj));
-        }
-        if (!transaction.nodeAccountIds || transaction.nodeAccountIds.length === 0) {
-          transaction.setNodeAccountIds([
-            AccountId.fromString("0.0.3"),
-            AccountId.fromString("0.0.4"),
-            AccountId.fromString("0.0.5"),
-          ]);
-        }
-        transaction.setMaxTransactionFee(new Hbar(10));
-        transaction.freeze();
-      }
+      // Use HashConnect's getSigner() approach — this is the ONLY correct way
+      // to send transactions with HashConnect v3 + WalletConnect v2.
+      // DO NOT manually set TransactionId, nodeAccountIds, or freeze the transaction.
+      // The HashConnectSigner.call() method handles ALL of that internally via
+      // populateTransaction(), which sets the correct TransactionId and nodeAccountIds
+      // from the live WalletConnect session. Manual preparation corrupts the protobuf
+      // structure causing the "(BUG) body.data was not set" error.
+      const signer = hashconnect.getSigner(accountIdObj);
 
       const TIMEOUT_MS = 60_000;
       let txSettled = false;
@@ -560,8 +554,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       let response: any;
       try {
-        // @ts-ignore — version mismatch between HashConnect and Hedera SDK types
-        const txPromise = hashconnect.sendTransaction(accountIdObj as any, transaction as any);
+        const txPromise = transaction.freezeWithSigner(signer)
+          .then(frozenTx => frozenTx.executeWithSigner(signer));
         response = await Promise.race([txPromise, timeoutPromise]);
         txSettled = true;
       } catch (innerErr) {
@@ -569,23 +563,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw innerErr;
       }
 
-      const rawStatus =
-        response?.nodeTransactionPrecheckCode ??
-        response?.transactionReceipt?.status ??
-        response?.receipt?.status ??
-        response?.status ??
-        response?.statusId;
-
-      const statusStr = rawStatus?.toString();
-      if (rawStatus !== undefined && rawStatus !== 22 && statusStr !== "SUCCESS") {
-        throw new Error(`Hedera network rejected the transaction. Status: ${statusStr}.`);
-      }
-
       const txId = response?.transactionId
         ? typeof response.transactionId === "string"
           ? response.transactionId
           : response.transactionId.toString()
-        : transaction.transactionId?.toString() || null;
+        : null;
 
       console.log("[WagerWallet] ✅ Transaction confirmed. txId:", txId);
       return { txId, status: "SUCCESS" };
