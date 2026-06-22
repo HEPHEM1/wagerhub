@@ -553,21 +553,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const accountIdObj = AccountId.fromString(accountId);
 
-      // Prepare the transaction for HashConnect v3 sendTransaction.
-      // We MUST set TransactionId and nodeAccountIds before freezing —
-      // hashconnect.sendTransaction() skips populate if already frozen,
-      // so we ensure correct values are set here from the SDK directly.
-      if (!transaction.isFrozen()) {
-        transaction
-          .setTransactionId(TransactionId.generate(accountIdObj))
-          .setNodeAccountIds([
-            AccountId.fromString("0.0.3"),
-            AccountId.fromString("0.0.4"),
-            AccountId.fromString("0.0.5"),
-          ])
-          .setMaxTransactionFee(new Hbar(10))
-          .freeze();
-      }
+      // We MUST use freezeWithSigner and executeWithSigner for HashConnect V3.
+      // Manually freezing the transaction before sending it causes the 
+      // '(BUG) body.data was not set in the protobuf' error.
+      // HashConnect's signer automatically populates TransactionId and NodeAccountIds.
+      const signer = hashconnect.getSigner(accountIdObj);
 
       const TIMEOUT_MS = 60_000;
       let txSettled = false;
@@ -580,8 +570,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       let response: any;
       try {
-        // @ts-ignore — version mismatch between HashConnect and Hedera SDK types
-        const txPromise = hashconnect.sendTransaction(accountIdObj as any, transaction as any);
+        const txPromise = transaction.freezeWithSigner(signer)
+          .then(frozenTx => frozenTx.executeWithSigner(signer));
         response = await Promise.race([txPromise, timeoutPromise]);
         txSettled = true;
       } catch (innerErr) {
@@ -593,7 +583,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         ? typeof response.transactionId === "string"
           ? response.transactionId
           : response.transactionId.toString()
-        : transaction.transactionId?.toString() || null;
+        : null;
 
       console.log("[WagerWallet] ✅ Transaction confirmed. txId:", txId);
       return { txId, status: "SUCCESS" };
