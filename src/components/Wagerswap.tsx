@@ -427,7 +427,7 @@ export default function Wagerswap() {
         } else if (message.includes("INSUFFICIENT_PAYER_BALANCE")) {
           message = "Insufficient balance to cover gas + swap amount.";
         } else if (message.includes("INSUFFICIENT_GAS")) {
-          message = "Gas too low. Contact support — gas is set to " + SWAP_GAS + ".";
+          message = "Gas too low. Contact support — gas is set to 4M.";
         } else if (message.includes("CONTRACT_REVERT_EXECUTED")) {
           message = "Router contract reverted. Slippage too high or pool has insufficient liquidity.";
         }

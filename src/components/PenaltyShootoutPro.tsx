@@ -5,9 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
-import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI, WAGER_GAMES_HEDERA_ID, getCleanFunctionBytes } from "@/evm-contracts";
-import { TransferTransaction, ContractExecuteTransaction, ContractFunctionParameters, AccountId, TokenId, ContractId } from "@hashgraph/sdk";
-import { ethers } from "ethers";
+import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI } from "@/evm-contracts";
+import { AccountId, TokenId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
 const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
@@ -97,34 +96,17 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
       let txId = null;
 
       // 1. Execute Smart Contract Game Call
-      if (walletType === "METAMASK") {
-        const res = await executeEVMSmartContract(
-          MOCK_WAGER_GAMES_ADDRESS,
-          WAGER_GAMES_ABI,
-          "playPenalty",
-          [amountInTokens.toString()]
-        );
-        if (res?.status !== "SUCCESS") throw new Error("MetaMask contract call failed.");
-        txId = res.txId;
-      } else {
-        const memo = isLoss ? "Penalty Pro Loss" : "Penalty Pro Win - Verifying...";
-        
-        // HashPack Smart Contract Call via Raw ABI Encoding
-        const iface = new ethers.Interface(WAGER_GAMES_ABI);
-        const encoded = iface.encodeFunctionData("playPenalty", [amountInTokens.toString()]);
-        const cleanBytes = getCleanFunctionBytes(encoded);
-
-        const tx = new ContractExecuteTransaction()
-          .setContractId(ContractId.fromString(WAGER_GAMES_HEDERA_ID))
-          .setGas(5000000)
-          .setFunctionParameters(cleanBytes)
-          .setTransactionMemo(memo);
-          
-        console.log("[PenaltyPro] Executing V4 Game with 5M gas...");
-        const res = await executeTransaction(tx);
-        if (res?.status !== "SUCCESS") throw new Error("HashPack contract call failed.");
-        txId = res.txId;
-      }
+      if (walletType !== "EVM") throw new Error("Wallet not connected or wrong type.");
+      
+      const res = await executeEVMSmartContract(
+        MOCK_WAGER_GAMES_ADDRESS,
+        WAGER_GAMES_ABI,
+        "playPenalty",
+        [amountInTokens.toString()]
+      );
+      
+      if (res?.status !== "SUCCESS") throw new Error("Contract call failed.");
+      txId = res.txId;
 
       if (isLoss) {
         setIsProcessing(false);
