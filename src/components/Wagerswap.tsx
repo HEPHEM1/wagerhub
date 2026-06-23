@@ -9,12 +9,15 @@ import {
   EVM_WAGER_TOKEN_ADDRESS, 
   EVM_TREASURY_ADDRESS, 
   ERC20_ABI, 
-  MOCK_WAGER_SWAP_POOL_ADDRESS, 
-  WAGER_SWAP_POOL_ABI,
   HTS_PRECOMPILE_ADDRESS,
   HTS_ABI
 } from "../evm";
-import { WAGER_SWAP_POOL_HEDERA_ID, getCleanFunctionBytes } from "@/evm-contracts";
+import { 
+  WAGER_SWAP_POOL_HEDERA_ID, 
+  getCleanFunctionBytes, 
+  MOCK_WAGER_SWAP_POOL_ADDRESS, 
+  WAGER_SWAP_POOL_ABI 
+} from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
