@@ -4,11 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, TrendingDown, Coins, Loader2, ArrowLeft, Target, ShieldAlert, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
-
-const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
-const WAGER_TOKEN_ID = TokenId.fromString((process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim());
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "../evm";
 
 const LEVERAGE = 500; // 500x synthetic leverage for highly dynamic payouts
 
@@ -21,7 +18,7 @@ interface Candle {
 }
 
 export default function TrendRider({ onBack }: { onBack: () => void }) {
-  const { isConnected, accountId, balances, executeTransaction, connect, addWagerPoints } = useWagerWallet();
+  const { isConnected, accountId, balances, executeEVMTransfer, connect, addWagerPoints } = useWagerWallet();
 
   // Core Game State
   const [gameState, setGameState] = useState<"idle" | "active" | "resolved">("idle");
@@ -238,15 +235,13 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
     setIsChartFrozen(true);
 
     try {
-      const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
-      
-      const tx = new TransferTransaction()
-        .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-        .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-        .setTransactionMemo(`Trend Rider ${dir} Entry`);
-
-      const res = await executeTransaction(tx);
-      if (!res) throw new Error("Transaction rejected");
+      const amountInTokens = BigInt(Math.floor(parseFloat(wager) * 1e8));
+      const res = await executeEVMTransfer(
+        EVM_WAGER_TOKEN_ADDRESS,
+        EVM_TREASURY_ADDRESS,
+        amountInTokens.toString()
+      );
+      if (!res || res.status !== "SUCCESS") throw new Error("Transaction rejected");
 
       // Transaction Success - Start Game immediately
       setGameState("active");

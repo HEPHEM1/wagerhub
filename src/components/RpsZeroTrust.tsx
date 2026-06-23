@@ -3,17 +3,14 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Lock, Unlock, Link as LinkIcon, RefreshCw, AlertCircle, ArrowLeft, HelpCircle } from "lucide-react";
-import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 import { useWalletContext } from "../context/WalletContext";
-
-const WAGER_TOKEN_ID = process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191";
-const TREASURY_ACCOUNT_ID = process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484";
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "../evm";
 
 type Move = "ROCK" | "PAPER" | "SCISSORS";
 
 export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
-  const { isConnected, accountId, balances, connect, executeTransaction, refreshBalances, addWagerPoints } = useWalletContext();
+  const { isConnected, accountId, balances, connect, executeEVMTransfer, refreshBalances, addWagerPoints } = useWalletContext();
 
   const [wager, setWager] = useState<string>("10");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -75,14 +72,13 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
     setTxError(null);
 
     try {
-      const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
-      const tx = new TransferTransaction()
-        .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-        .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-        .setTransactionMemo(`RPS Zero Trust: ${move}`);
-
-      const res = await executeTransaction(tx);
-      if (!res) throw new Error("Transaction rejected");
+      const amountInTokens = BigInt(Math.floor(parseFloat(wager) * 1e8));
+      const res = await executeEVMTransfer(
+        EVM_WAGER_TOKEN_ADDRESS,
+        EVM_TREASURY_ADDRESS,
+        amountInTokens.toString()
+      );
+      if (!res || res.status !== "SUCCESS") throw new Error("Transaction rejected");
 
       // Transaction Succeeded! Reveal UI instantly.
       setIsProcessing(false);

@@ -3,17 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Play, Link as LinkIcon, AlertCircle, RefreshCw, Layers, ShieldAlert, ArrowLeft, HelpCircle, Target } from "lucide-react";
-import { TransferTransaction } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 import { useWalletContext } from "../context/WalletContext";
-
-const WAGER_TOKEN_ID = process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191";
-const TREASURY_ACCOUNT_ID = process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484";
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS, ERC20_ABI } from "../evm";
 
 type Risk = "Low" | "Medium" | "High";
 
 export default function GravityDrop({ onClose }: { onClose: () => void }) {
-  const { isConnected, accountId, balances, connect, executeTransaction, refreshBalances, addWagerPoints } = useWalletContext();
+  const { isConnected, accountId, balances, connect, executeEVMTransfer, refreshBalances, addWagerPoints } = useWalletContext();
 
   const [wager, setWager] = useState<string>("50");
   const [rows, setRows] = useState<number>(12);
@@ -105,14 +102,14 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
     let txSucceeded = false;
 
     try {
-      const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
-      const tx = new TransferTransaction()
-        .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-        .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-        .setTransactionMemo(`Gravity Drop: ${rows} Rows, ${risk} Risk`);
-
-      const res = await executeTransaction(tx);
-      if (!res) throw new Error("Transaction rejected");
+      // Transfer $WAGER tokens via EVM (no Hedera SDK protobuf needed)
+      const amountInTokens = BigInt(Math.floor(parseFloat(wager) * 1e8));
+      const res = await executeEVMTransfer(
+        EVM_WAGER_TOKEN_ADDRESS,
+        EVM_TREASURY_ADDRESS,
+        amountInTokens.toString()
+      );
+      if (!res || res.status !== "SUCCESS") throw new Error("Transaction rejected");
 
       // Transaction Succeeded! Start Drop Animation.
       txSucceeded = true;

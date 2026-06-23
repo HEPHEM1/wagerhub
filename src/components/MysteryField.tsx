@@ -4,11 +4,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Coins, Grid3X3, Loader2, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
-
-const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
-const WAGER_TOKEN_ID = TokenId.fromString("0.0.8818191");
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "../evm";
 
 type GameState = "setup" | "playing" | "cashout" | "bust";
 
@@ -28,7 +25,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCashingOut, setIsCashingOut] = useState(false);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
+  const { isConnected, accountId, balances, executeEVMTransfer, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
@@ -80,20 +77,18 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
     }, 6000);
 
     try {
-      const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
-      
-      const tx = new TransferTransaction()
-        .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-        .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-        .setTransactionMemo("Mystery Field Wager");
-
-      const res = await executeTransaction(tx);
+      const amountInTokens = BigInt(Math.floor(parseFloat(wager) * 1e8));
+      const res = await executeEVMTransfer(
+        EVM_WAGER_TOKEN_ADDRESS,
+        EVM_TREASURY_ADDRESS,
+        amountInTokens.toString()
+      );
 
       if (hasResolved) return;
       hasResolved = true;
       clearTimeout(fallbackTimeout);
 
-      if (!res) {
+      if (!res || res.status !== "SUCCESS") {
         console.warn("[MysteryField] Transaction execution returned null.");
         alert("Transaction was rejected or failed to parse. Please check your wallet.");
         return;

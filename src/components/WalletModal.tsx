@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink } from 'lucide-react';
-import { useWalletContext } from '@/context/WalletContext';
+import { useWagerWallet } from '@/hooks/useWagerWallet';
 
 export default function WalletModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
-  const { connect, connectMetaMask, isConnecting } = useWalletContext();
+  const { connect, connectMetaMask, isConnecting } = useWagerWallet();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {

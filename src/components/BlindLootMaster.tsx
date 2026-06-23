@@ -4,11 +4,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, Skull, Zap, Loader2, Footprints, Info, Sparkles, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
-
-const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
-const WAGER_TOKEN_ID = TokenId.fromString("0.0.8818191");
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "../evm";
 
 type Choice = "cursed" | "blessed" | null;
 
@@ -19,7 +16,7 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
   const [resultType, setResultType] = useState<"win" | "loss" | null>(null);
   const [payoutAmount, setPayoutAmount] = useState<string>("0");
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
+  const { isConnected, accountId, balances, executeEVMTransfer, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const takeFate = async () => {
     if (!selectedPath || isConfirming) return;
@@ -31,15 +28,13 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
     setIsConfirming(true);
     
     try {
-      const amountInTokens = Math.floor(100 * 1e8); // Fixed 100 WAGER as per prompt
-      
-      const tx = new TransferTransaction()
-        .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-        .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-        .setTransactionMemo(`Blind Loot: ${selectedPath.toUpperCase()} Choice`);
-
-      const res = await executeTransaction(tx);
-      if (!res) throw new Error("Transaction rejected");
+      const amountInTokens = BigInt(Math.floor(100 * 1e8)); // Fixed 100 WAGER
+      const res = await executeEVMTransfer(
+        EVM_WAGER_TOKEN_ADDRESS,
+        EVM_TREASURY_ADDRESS,
+        amountInTokens.toString()
+      );
+      if (!res || res.status !== "SUCCESS") throw new Error("Transaction rejected");
 
       // 5-second polling/reveal delay
       await new Promise(resolve => setTimeout(resolve, 5000));

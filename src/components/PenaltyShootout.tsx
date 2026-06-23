@@ -4,10 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { TransferTransaction, TokenId, AccountId } from "@hashgraph/sdk";
-
-const TREASURY_ACCOUNT_ID = AccountId.fromString((process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim());
-const WAGER_TOKEN_ID = TokenId.fromString((process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191").trim());
+import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "../evm";
 
 type GameState = "setup" | "kicking" | "goal" | "saved";
 
@@ -28,7 +25,7 @@ export default function PenaltyShootout({ onClose }: { onClose: () => void }) {
   const [keeperDives, setKeeperDives] = useState<number[]>([]);
   const [lastWinAmount, setLastWinAmount] = useState<string | null>(null);
 
-  const { isConnected, accountId, balances, executeTransaction, refreshBalances, connect, addWagerPoints } = useWagerWallet();
+  const { isConnected, accountId, balances, executeEVMTransfer, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
   const handleQuickSelect = (percent: string) => {
     if (!balances.wager || balances.wager === "0.00") return;
@@ -63,41 +60,26 @@ export default function PenaltyShootout({ onClose }: { onClose: () => void }) {
       setKeeperDives(dives);
 
       const isLoss = dives.includes(zoneId);
-      const amountInTokens = Math.floor(parseFloat(wager) * 1e8);
+      const amountInTokens = BigInt(Math.floor(parseFloat(wager) * 1e8));
 
-      // 2. Execution Logic
+      // 2. Execution Logic — Both win and loss pay into treasury first (anti-fraud)
+      const res = await executeEVMTransfer(
+        EVM_WAGER_TOKEN_ADDRESS,
+        EVM_TREASURY_ADDRESS,
+        amountInTokens.toString()
+      );
+      if (!res || res.status !== "SUCCESS") throw new Error("Transaction rejected");
+
       if (isLoss) {
-        // Player Lost -> Transfer to Treasury
-        const tx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Penalty Shootout Loss");
-
-        const res = await executeTransaction(tx);
-        if (!res) throw new Error("Transaction rejected");
-        
         setGameState("saved");
       } else {
-        // Player Won -> Get payout (1.5x Multiplier for 4/6 odds)
-        // Note: For 2 keeper dives out of 6 zones, odds are 4/6 = 66.6% win rate.
-        // We'll use a 1.4x multiplier for a house edge.
         const winAmount = (parseFloat(wager) * 1.4).toFixed(2);
         setLastWinAmount(winAmount);
 
-        // We execute a transfer of the wager first (standard for all games to prevent front-running)
-        const tx = new TransferTransaction()
-          .addTokenTransfer(WAGER_TOKEN_ID, accountId, -amountInTokens)
-          .addTokenTransfer(WAGER_TOKEN_ID, TREASURY_ACCOUNT_ID, amountInTokens)
-          .setTransactionMemo("Penalty Shootout Win - Verifying...");
-
-        const res = await executeTransaction(tx);
-        if (!res) throw new Error("Transaction rejected");
-
-        // Hit payout API
         const payoutRes = await fetch("/api/payout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             accountId, 
             winAmount,
             wagerAmount: wager,
