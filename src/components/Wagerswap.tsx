@@ -5,32 +5,23 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
-import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "@/evm";
-import { MOCK_WAGER_SWAP_POOL_ADDRESS, WAGER_SWAP_POOL_ABI, WAGER_SWAP_POOL_HEDERA_ID, getCleanFunctionBytes } from "@/evm-contracts";
+import { 
+  EVM_WAGER_TOKEN_ADDRESS, 
+  EVM_TREASURY_ADDRESS, 
+  ERC20_ABI, 
+  MOCK_WAGER_SWAP_POOL_ADDRESS, 
+  WAGER_SWAP_POOL_ABI,
+  HTS_PRECOMPILE_ADDRESS,
+  HTS_ABI
+} from "../evm";
+import { WAGER_SWAP_POOL_HEDERA_ID, getCleanFunctionBytes } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
-import {
-  TokenAssociateTransaction,
-  ContractExecuteTransaction,
-  ContractFunctionParameters,
-  TransferTransaction,
-  ContractId,
-  TokenId,
-  AccountId,
-  Hbar,
-  TransactionId,
-  Transaction,
-} from "@hashgraph/sdk";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WAGER_TOKEN_ID_STRING = "0.0.8818191";
-const WAGER_TOKEN_ID = TokenId.fromString(WAGER_TOKEN_ID_STRING);
-
 const USDT_TOKEN_ID_STRING = (process.env.NEXT_PUBLIC_USDT_TOKEN_ID || "0.0.12345").trim();
 const USDC_TOKEN_ID_STRING = (process.env.NEXT_PUBLIC_USDC_TOKEN_ID || "0.0.67890").trim();
-
-const SWAP_CONTRACT_ID = ContractId.fromString("0.0.1234567"); // TODO: replace with live router
-const SWAP_GAS = 100_000;
 
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 const TREASURY_ID = (process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim();
@@ -82,7 +73,7 @@ export default function Wagerswap() {
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMHbarTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
 
@@ -247,31 +238,35 @@ export default function Wagerswap() {
 
   // ── Batch association guardrail (loops through entire route) ──────────────────────
   const ensureAllAssociated = async (accId: string, tokensToCheck: Token[]): Promise<void> => {
-    const toAssociate: TokenId[] = [];
+    const toAssociate: string[] = [];
     for (const token of tokensToCheck) {
       if (token.type === "native" || token.tokenId === "HBAR") continue;
       const associated = await checkTokenAssociation(accId, token.tokenId);
       if (!associated) {
         console.log(`[Wagerswap] Queuing association for ${token.symbol} (${token.tokenId})`);
-        toAssociate.push(TokenId.fromString(token.tokenId));
+        // Convert Hedera token ID (0.0.X) to EVM address (0x...)
+        const parts = token.tokenId.split('.');
+        const num = BigInt(parts[2]);
+        const evmAddress = "0x" + num.toString(16).padStart(40, '0');
+        toAssociate.push(evmAddress);
       }
     }
     if (toAssociate.length === 0) return;
 
     setSwapStatus("associating");
-    console.log(`[Wagerswap] Associating ${toAssociate.length} token(s) in unified tx...`);
-    const rawAssocTx = new TokenAssociateTransaction()
-      .setAccountId(AccountId.fromString(accId))
-      .setTokenIds(toAssociate)
-      .setTransactionId(TransactionId.generate(AccountId.fromString(accId)))
-      .setNodeAccountIds([
-        AccountId.fromString("0.0.3"),
-        AccountId.fromString("0.0.4"),
-        AccountId.fromString("0.0.5"),
-      ])
-      .freeze();
-    const assocRes = await executeTransaction(Transaction.fromBytes(rawAssocTx.toBytes()));
-    if (!assocRes) throw new Error("Token association rejected. Please approve in your wallet and retry.");
+    console.log(`[Wagerswap] Associating ${toAssociate.length} token(s) via HTS Precompile...`);
+    
+    // Call Hedera HTS Precompile associateTokens(address, address[])
+    const assocRes = await executeEVMSmartContract(
+      HTS_PRECOMPILE_ADDRESS,
+      HTS_ABI,
+      "associateTokens",
+      [accId, toAssociate]
+    );
+
+    if (!assocRes || assocRes.status !== "SUCCESS") {
+      throw new Error("Token association rejected. Please approve in your wallet and retry.");
+    }
     console.log("[Wagerswap] ✅ Batch association confirmed:", assocRes.txId);
   };
 
@@ -315,66 +310,41 @@ export default function Wagerswap() {
       setSwapStatus("swapping");
       let res;
 
-      if (walletType === "METAMASK") {
-        if (payToken.symbol === "HBAR") {
-          res = await executeEVMSmartContract(
-            MOCK_WAGER_SWAP_POOL_ADDRESS,
-            WAGER_SWAP_POOL_ABI,
-            "swapHbarForToken",
-            ["WAGER"],
-            payAmount
-          );
-        } else {
-          // Token to Token swaps would call another AMM function in the future.
-          // Fallback to legacy transfer for now.
-          const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
-          const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
-          res = await executeEVMTransfer(
-            EVM_WAGER_TOKEN_ADDRESS,
-            EVM_TREASURY_ADDRESS,
-            amountInTokens.toString()
-          );
-        }
+      if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
+        // ── HBAR → $WAGER via Smart Contract (Pure EVM) ──
+        console.log("[WagerSwap] Executing HBAR→WAGER via EVM SmartContract...");
+        res = await executeEVMSmartContract(
+          MOCK_WAGER_SWAP_POOL_ADDRESS,
+          WAGER_SWAP_POOL_ABI,
+          "swapHbarForWager",
+          [],
+          payAmount
+        );
+      } else if (payToken.symbol === "HBAR") {
+        // Fallback: HBAR Transfer
+        res = await executeEVMHbarTransfer(
+          EVM_TREASURY_ADDRESS,
+          payAmount
+        );
       } else {
-        if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
-          // ── HBAR → $WAGER via Smart Contract (EVM path — works for ALL wallets) ──
-          // We use window.ethereum (injected by HashPack AND MetaMask) to call
-          // swapHbarForWager() directly on the Hedera EVM. This completely bypasses
-          // the Hedera SDK's ContractExecuteTransaction protobuf serialization bug.
-          console.log("[WagerSwap] Executing HBAR→WAGER via EVM SmartContract...");
-          res = await executeEVMSmartContract(
-            MOCK_WAGER_SWAP_POOL_ADDRESS,
-            WAGER_SWAP_POOL_ABI,
-            "swapHbarForWager",
-            [],
-            payAmount   // HBAR amount (ethers.parseEther converts to weibars for Hedera EVM)
-          );
-        } else {
-          // Fallback to legacy transfer route for other pairs
-          let swapTx = new TransferTransaction();
-          if (payToken.symbol === "HBAR") {
-            const amountInHbar = Hbar.fromString(payAmount);
-            swapTx.addHbarTransfer(accountId, amountInHbar.negated())
-                  .addHbarTransfer(TREASURY_ID, amountInHbar)
-                  .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}`);
-        } else {
-          // Use TOKEN_DECIMALS map to guarantee correct on-chain scaling
-          const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
-          const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
-          console.log(`[Wagerswap] Route: ${route.map(t => t.symbol).join(" → ")} | Decimals: ${decimals}`);
-
-          swapTx.addTokenTransfer(TokenId.fromString(payToken.tokenId), accountId, -amountInTokens)
-                .addTokenTransfer(TokenId.fromString(payToken.tokenId), TREASURY_ID, amountInTokens)
-                .setTransactionMemo(`WagerHub: ${payToken.symbol} → ${receiveToken.symbol}${isMultiHop ? " via HBAR" : ""}`);
+        // Fallback: ERC20 Token Transfer
+        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+        console.log(`[Wagerswap] ERC20 Transfer | Decimals: ${decimals}`);
+        
+        // Convert Hedera Token ID to EVM Address if needed
+        let tokenEVMAddress = payToken.tokenId;
+        if (tokenEVMAddress.includes(".")) {
+           const parts = tokenEVMAddress.split('.');
+           const num = BigInt(parts[2]);
+           tokenEVMAddress = "0x" + num.toString(16).padStart(40, '0');
         }
 
-        try {
-          res = await executeTransaction(swapTx);
-        } catch (error) {
-          console.error("TRANSACTION FAILURE (Frontend):", error);
-          throw error;
-        }
-        } // close inner else
+        res = await executeEVMTransfer(
+          tokenEVMAddress,
+          EVM_TREASURY_ADDRESS,
+          amountInTokens.toString() // Needs proper bignumber parsing if scaling is high
+        );
       }
       
       if (!res || res.status !== "SUCCESS") {

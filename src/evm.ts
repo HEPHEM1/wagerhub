@@ -9,4 +9,10 @@ export const ERC20_ABI = [
   "function decimals() view returns (uint8)"
 ];
 
+export const HTS_PRECOMPILE_ADDRESS = "0x0000000000000000000000000000000000000167";
+
+export const HTS_ABI = [
+  "function associateTokens(address account, address[] tokens) external returns (int64)"
+];
+
 export const HEDERA_TESTNET_CHAIN_ID = "0x128"; // 296
