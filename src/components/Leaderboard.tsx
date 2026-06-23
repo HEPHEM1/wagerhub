@@ -11,7 +11,8 @@ interface LeaderboardEntry {
 }
 
 export default function Leaderboard() {
-  const { isConnected, accountId, shortAccountId, wagerPoints } = useWagerWallet();
+  const { isConnected, accountId, wagerPoints } = useWagerWallet();
+  const shortAccountId = accountId ? `${accountId.slice(0, 6)}...${accountId.slice(-4)}` : "";
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
