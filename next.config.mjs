@@ -8,7 +8,15 @@ const nextConfig = {
       net: false,
       tls: false
     };
-    config.externals.push('pino-pretty', 'lokijs', 'encoding', 'accounts');
+    config.externals.push(
+      'pino-pretty', 
+      'lokijs', 
+      'encoding', 
+      'accounts', 
+      '@metamask/connect-evm', 
+      'porto', 
+      'porto/internal'
+    );
     return config;
   }
 };
