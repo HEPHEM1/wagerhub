@@ -1,8 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Turbopack is enabled by default in Next.js 16.
-  // We no longer need custom webpack polyfills because @hashgraph/sdk 
-  // has been entirely removed from the browser-side code.
+  // Use standard webpack to avoid Turbopack failing on Wagmi dynamic imports
+  webpack: (config, { isServer }) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false
+    };
+    config.externals.push('pino-pretty', 'lokijs', 'encoding', 'accounts');
+    return config;
+  }
 };
 
 export default nextConfig;
