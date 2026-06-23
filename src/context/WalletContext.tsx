@@ -288,3 +288,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 export function useWagerWallet() {
   return useContext(WalletContext);
 }
+
+// ── Backward-compatibility alias (game components still import this) ──────────
+export const useWalletContext = useWagerWallet;

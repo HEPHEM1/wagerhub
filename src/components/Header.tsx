@@ -11,7 +11,6 @@ export default function Header() {
     isConnecting,
     isInitialized,
     accountId,
-    shortAccountId,
     wagerCredits,
     balances,
     error,
@@ -20,10 +19,14 @@ export default function Header() {
     refreshBalances,
   } = useWagerWallet();
 
+  // Shorten EVM address for display: 0x1234...5678
+  const shortAccountId = accountId
+    ? `${accountId.slice(0, 6)}...${accountId.slice(-4)}`
+    : null;
+
   const [timeLeft, setTimeLeft] = useState("00:00:00");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ── Beta Season timer ─────────────────────────────────────────────────────────
   useEffect(() => {
