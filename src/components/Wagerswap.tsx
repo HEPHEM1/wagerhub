@@ -224,6 +224,7 @@ export default function Wagerswap() {
   const checkTokenAssociation = async (accId: string, tokenIdStr: string): Promise<boolean> => {
     try {
       if (tokenIdStr === "HBAR") return true;
+      // Mirror node accepts both 0x EVM address and 0.0.X Hedera ID
       const url = `${MIRROR_NODE_BASE}/accounts/${accId}/tokens?token.id=${tokenIdStr}&limit=1`;
       const res = await fetch(url);
       if (!res.ok) return false;
@@ -257,10 +258,14 @@ export default function Wagerswap() {
     setSwapStatus("associating");
     console.log(`[Wagerswap] Associating ${toAssociate.length} token(s) via HTS Precompile...`);
     
-    // Call Hedera HTS Precompile associateTokens(address, address[])
+    // CRITICAL FIX: associateTokens is a STATE-CHANGING function on the HTS precompile.
+    // We must NOT use the standard ABI string because ethers.js will detect the int64 return
+    // type and make it a static CALL (which Hedera rejects with LOCAL_CALL_MODIFICATION_EXCEPTION).
+    // Instead, use executeEVMSmartContract which forces a transaction via sendTransaction.
     const assocRes = await executeEVMSmartContract(
       HTS_PRECOMPILE_ADDRESS,
-      HTS_ABI,
+      // Use non-payable ABI with explicit return type suppressed to force tx (not static call)
+      ["function associateTokens(address account, address[] memory tokens) external"],
       "associateTokens",
       [accId, toAssociate]
     );
@@ -347,13 +352,31 @@ export default function Wagerswap() {
 
       // ── Step 4: Backend Payout ─────────────────────────────────────────────
       setSwapStatus("payout");
-      console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${accountId}`);
+
+      // CRITICAL FIX: The payout API uses @hashgraph/sdk which requires Hedera format
+      // account IDs (0.0.XXXXX). However, AppKit/MetaMask gives us an EVM 0x address.
+      // We must resolve the EVM address -> Hedera account ID via the Mirror Node.
+      let hederaAccountId = accountId;
+      if (accountId && accountId.startsWith("0x")) {
+        try {
+          const mirrorRes = await fetch(`${MIRROR_NODE_BASE}/accounts/${accountId}`);
+          if (mirrorRes.ok) {
+            const mirrorData = await mirrorRes.json();
+            hederaAccountId = mirrorData?.account || accountId;
+            console.log(`[Wagerswap] Resolved EVM ${accountId} → Hedera ${hederaAccountId}`);
+          }
+        } catch {
+          console.warn("[Wagerswap] Could not resolve Hedera account ID, using EVM address");
+        }
+      }
+
+      console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${hederaAccountId}`);
 
       const payoutRes = await fetch("/api/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          accountId, 
+          accountId: hederaAccountId, 
           receiveTokenId: receiveToken.tokenId,
           receiveAmountStr: receiveAmount,
           transactionId: res.txId 

@@ -35,6 +35,35 @@ export async function POST(req: Request) {
     // Initialize the Hedera client with the Treasury credentials
     const client = Client.forTestnet().setOperator(operatorId, key);
 
+    // CRITICAL FIX: AppKit/MetaMask sends EVM 0x addresses, not Hedera account IDs.
+    // Resolve the EVM address to Hedera format (0.0.XXXXX) via Mirror Node.
+    let resolvedAccountId = accountId;
+    if (accountId && accountId.startsWith("0x")) {
+      try {
+        const mirrorRes = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/accounts/${accountId}`);
+        if (mirrorRes.ok) {
+          const mirrorData = await mirrorRes.json();
+          resolvedAccountId = mirrorData?.account || accountId;
+          console.log(`[Payout API] Resolved EVM ${accountId} → Hedera ${resolvedAccountId}`);
+        }
+      } catch (e) {
+        console.warn(`[Payout API] Could not resolve Hedera account ID for ${accountId}:`, e);
+      }
+    }
+
+    // Also resolve receiveTokenId if it came in as a 0x EVM address
+    let resolvedReceiveTokenId = receiveTokenId;
+    if (receiveTokenId && receiveTokenId.startsWith("0x") && receiveTokenId !== "HBAR") {
+      try {
+        const num = BigInt(receiveTokenId);
+        const shard = 0, realm = 0, entity = num;
+        resolvedReceiveTokenId = `${shard}.${realm}.${entity}`;
+        console.log(`[Payout API] Resolved EVM token ${receiveTokenId} → ${resolvedReceiveTokenId}`);
+      } catch {
+        // Keep original if conversion fails
+      }
+    }
+
     let tx: TransferTransaction;
     let memo = "WagerHub Payout";
 
@@ -59,11 +88,11 @@ export async function POST(req: Request) {
       
       if (isNative) {
         tx.addHbarTransfer(AccountId.fromString(treasuryId), new Hbar(amt).negated());
-        tx.addHbarTransfer(AccountId.fromString(accountId), new Hbar(amt));
+        tx.addHbarTransfer(AccountId.fromString(resolvedAccountId), new Hbar(amt));
       } else {
         const amountInTiny = Math.floor(amt * Math.pow(10, decimals));
-        tx.addTokenTransfer(TokenId.fromString(receiveTokenId), AccountId.fromString(treasuryId), -amountInTiny);
-        tx.addTokenTransfer(TokenId.fromString(receiveTokenId), AccountId.fromString(accountId), amountInTiny);
+        tx.addTokenTransfer(TokenId.fromString(resolvedReceiveTokenId), AccountId.fromString(treasuryId), -amountInTiny);
+        tx.addTokenTransfer(TokenId.fromString(resolvedReceiveTokenId), AccountId.fromString(resolvedAccountId), amountInTiny);
       }
       tx.setTransactionMemo(memoStr);
     } 
@@ -79,7 +108,7 @@ export async function POST(req: Request) {
 
       tx = new TransferTransaction()
         .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(treasuryId), -amountInTokens)
-        .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(accountId), amountInTokens)
+        .addTokenTransfer(TokenId.fromString(WAGER_TOKEN_ID), AccountId.fromString(resolvedAccountId), amountInTokens)
         .setTransactionMemo(memo);
     }
     // ─── Legacy Reverse Swap (WAGER -> HBAR) ──────────────────────────────
@@ -89,7 +118,7 @@ export async function POST(req: Request) {
 
       tx = new TransferTransaction()
         .addHbarTransfer(AccountId.fromString(treasuryId), new Hbar(hbarToPayout).negated())
-        .addHbarTransfer(AccountId.fromString(accountId), new Hbar(hbarToPayout))
+        .addHbarTransfer(AccountId.fromString(resolvedAccountId), new Hbar(hbarToPayout))
         .setTransactionMemo(memo);
     } else {
       return NextResponse.json({ error: "Invalid payout parameters" }, { status: 400 });
