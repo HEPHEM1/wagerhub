@@ -10,7 +10,7 @@ import React, {
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { defineChain } from "viem";
-import { WagmiProvider, useAccount, useDisconnect } from "wagmi";
+import { WagmiProvider, useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ethers } from "ethers";
 import { getWalletClient } from "@wagmi/core";
@@ -139,8 +139,17 @@ async function fetchTokenBalance(accountId: string, tokenId: string, expectedDec
 
 // ─── Inner Provider logic ─────────────────────────────────────────────────────
 function WalletProviderInner({ children }: { children: ReactNode }) {
-  const { address, isConnected, isConnecting } = useAccount();
+  const { address, isConnected, isConnecting, chainId } = useAccount();
   const { disconnectAsync } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+
+  // Force-switch network if the wallet is reporting the wrong chain (e.g. HashPack returning 295 instead of 296)
+  useEffect(() => {
+    if (isConnected && chainId && chainId !== 296 && switchChain) {
+      console.log(`[WalletContext] Detected chain mismatch (wallet is on ${chainId}). Forcing switch to 296...`);
+      switchChain({ chainId: 296 });
+    }
+  }, [isConnected, chainId, switchChain]);
 
   const [wagerPoints, setWagerPoints] = useState<number>(0);
   const [wagerCredits, setWagerCredits] = useState<number>(0);
