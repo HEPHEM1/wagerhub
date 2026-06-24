@@ -236,7 +236,8 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
         to: toAddress,
         value: ethers.parseEther(amountHbar),
         // CRITICAL FIX: Bypass eth_estimateGas which throws LOCAL_CALL_MODIFICATION_EXCEPTION on Hedera RPC
-        gasLimit: 100000,
+        // Must be EXACTLY 21000 for native transfers on Hedera, otherwise it fails precheck (-32000)
+        gasLimit: 21000,
       });
       const receipt = await tx.wait();
       return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
