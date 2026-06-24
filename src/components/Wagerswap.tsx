@@ -14,9 +14,7 @@ import {
 } from "../evm";
 import { 
   WAGER_SWAP_POOL_HEDERA_ID, 
-  getCleanFunctionBytes, 
-  MOCK_WAGER_SWAP_POOL_ADDRESS, 
-  WAGER_SWAP_POOL_ABI 
+  getCleanFunctionBytes
 } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 
@@ -313,18 +311,9 @@ export default function Wagerswap() {
       setSwapStatus("swapping");
       let res;
 
-      if (payToken.symbol === "HBAR" && receiveToken.symbol === "$WAGER") {
-        // ── HBAR → $WAGER via Smart Contract (Pure EVM) ──
-        console.log("[WagerSwap] Executing HBAR→WAGER via EVM SmartContract...");
-        res = await executeEVMSmartContract(
-          MOCK_WAGER_SWAP_POOL_ADDRESS,
-          WAGER_SWAP_POOL_ABI,
-          "swapHbarForWager",
-          [],
-          payAmount
-        );
-      } else if (payToken.symbol === "HBAR") {
-        // Fallback: HBAR Transfer
+      if (payToken.symbol === "HBAR") {
+        // HBAR Transfer to Treasury
+
         res = await executeEVMHbarTransfer(
           EVM_TREASURY_ADDRESS,
           payAmount
