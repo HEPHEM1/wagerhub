@@ -277,7 +277,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig as any}>
       <QueryClientProvider client={queryClient}>
         <WalletProviderInner>{children}</WalletProviderInner>
       </QueryClientProvider>
