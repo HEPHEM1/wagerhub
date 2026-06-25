@@ -14,6 +14,8 @@ import {
 } from "../evm";
 import { 
   WAGER_SWAP_POOL_HEDERA_ID, 
+  WAGER_SWAP_POOL_ABI,
+  MOCK_WAGER_SWAP_POOL_ADDRESS,
   getCleanFunctionBytes
 } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
@@ -74,7 +76,7 @@ export default function Wagerswap() {
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMHbarTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
 
   const [isClaimed, setIsClaimed] = useState(false);
 
@@ -317,10 +319,13 @@ export default function Wagerswap() {
       let res;
 
       if (payToken.symbol === "HBAR") {
-        // HBAR Transfer to Treasury
-
-        res = await executeEVMHbarTransfer(
-          EVM_TREASURY_ADDRESS,
+        // HBAR -> WAGER via Smart Contract
+        // This safely bypasses Hedera's Ed25519 Treasury EVM limitations by using a native EVM contract!
+        res = await executeEVMSmartContract(
+          MOCK_WAGER_SWAP_POOL_ADDRESS,
+          WAGER_SWAP_POOL_ABI,
+          "swapHbarForWager",
+          [],
           payAmount
         );
       } else {
@@ -350,47 +355,12 @@ export default function Wagerswap() {
       
       const txId = res.txId || "Confirmed on-chain (duplicate tx recovered)";
 
-      // ── Step 4: Backend Payout ─────────────────────────────────────────────
-      setSwapStatus("payout");
+      // ── Step 4: Success & Reward Calculation ───────────────────────────────
+      // Since the Smart Contract atomically handles the HBAR -> WAGER swap on-chain,
+      // we do NOT need to trigger the backend /api/payout API. 
+      setSwapStatus("success");
 
-      // CRITICAL FIX: The payout API uses @hashgraph/sdk which requires Hedera format
-      // account IDs (0.0.XXXXX). However, AppKit/MetaMask gives us an EVM 0x address.
-      // We must resolve the EVM address -> Hedera account ID via the Mirror Node.
-      let hederaAccountId = accountId;
-      if (accountId && accountId.startsWith("0x")) {
-        try {
-          const mirrorRes = await fetch(`${MIRROR_NODE_BASE}/accounts/${accountId}`);
-          if (mirrorRes.ok) {
-            const mirrorData = await mirrorRes.json();
-            hederaAccountId = mirrorData?.account || accountId;
-            console.log(`[Wagerswap] Resolved EVM ${accountId} → Hedera ${hederaAccountId}`);
-          }
-        } catch {
-          console.warn("[Wagerswap] Could not resolve Hedera account ID, using EVM address");
-        }
-      }
-
-      console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${hederaAccountId}`);
-
-      const payoutRes = await fetch("/api/payout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          accountId: hederaAccountId, 
-          receiveTokenId: receiveToken.tokenId,
-          receiveAmountStr: receiveAmount,
-          transactionId: res.txId 
-        })
-      });
-
-      if (!payoutRes.ok) {
-        const data = await payoutRes.json();
-        console.error("BACKEND CRASH REASON:", data.error);
-        throw new Error(`Swap successful, but Backend Payout failed: ${data.error || "Unknown server error"}`);
-      }
-
-      // ── Step 5: Success & Reward Calculation ───────────────────────────────
-      console.log("[Wagerswap] ✅ Swap & Payout successful. Tx ID:", txId);
+      console.log("[Wagerswap] ✅ Swap successful. Tx ID:", txId);
       
       const usdEquivalentValue = parseFloat(payAmount) * (pricesUsd[payToken.symbol] || 0);
       const todayGMT = new Date().toISOString().split('T')[0];
