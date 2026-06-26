@@ -199,20 +199,25 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     
     // Convert Viem custom transport to an Ethers provider
     const provider = new ethers.BrowserProvider(walletClient.transport as any, network);
-    return new ethers.JsonRpcSigner(provider, walletClient.account.address);
+    // Use the native getSigner() method which properly binds the provider's execution capabilities
+    return await provider.getSigner(walletClient.account.address);
   };
 
   const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
     try {
       const signer = await getEthersSigner();
+      
+      // Instantiate contract with provider, then explicitly connect the signer
+      // This solves the UNSUPPORTED_OPERATION (contract runner does not support sending transactions) error
       const contract = new ethers.Contract(contractAddress, abi, signer);
+      const connectedContract = contract.connect(signer) as any;
       
       const txOptions: any = { gasLimit: 5000000 };
       if (value && value !== "0") {
         txOptions.value = ethers.parseEther(value);
       }
       
-      const tx = await contract[functionName](...args, txOptions);
+      const tx = await connectedContract[functionName](...args, txOptions);
       const receipt = await tx.wait();
       return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
     } catch (e: any) {
