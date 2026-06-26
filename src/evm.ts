@@ -1,7 +1,7 @@
 // EVM specific constants and ABIs
 
 export const EVM_WAGER_TOKEN_ADDRESS = "0x0000000000000000000000000000000000868e0f";
-export const EVM_TREASURY_ADDRESS = "0x0000000000000000000000000000000000868e06";
+export const EVM_TREASURY_ADDRESS = "0x0000000000000000000000000000000000867f94";
 
 export const ERC20_ABI = [
   "function transfer(address to, uint256 amount) external returns (bool)",
