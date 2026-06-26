@@ -1,18 +1,20 @@
 // Hedera EVM addresses: 0x + contract num in hex, left-padded to 40 chars
 // 0.0.9289511 → 0x8DBF27 → 0x0000000000000000000000000000000000008dbf27 (but that's 41 hex chars)
 // Correct: 9289511 decimal = 0x8DBF27 (6 hex), padded to 40 = 00000000000000000000000000000000008dbf27
-export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x970F1388ec811155ECB072BbbC48C6bE17C60522";
-export const MOCK_WAGER_GAMES_ADDRESS     = "0x0EAe037F84Aa46804eaeeC146E3CB12391B875b4";
+export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x8394B7DC655c3b70c4b785f20F25fe8bD6B74B95";
+export const MOCK_WAGER_GAMES_ADDRESS     = "0xC68B5529Aeb410D56312ed1Bac6268e751D489cB";
 
 export const WAGER_SWAP_POOL_HEDERA_ID = "0.0.9289511";
 export const WAGER_GAMES_HEDERA_ID = "0.0.9290337";
 
 export const WAGER_SWAP_POOL_ABI = [
-  "function swapHbarForWager() external payable",
-  "function swapTokenForHbar(string tokenIn, uint256 amountIn) external",
-  "function swapTokenForToken(string tokenIn, string tokenOut, uint256 amountIn) external",
-  "function withdrawHbar() external",
-  "function withdrawWager(uint256 amount) external"
+  "function swapHbarForToken(string tokenOut, uint256 minAmountOut) external payable",
+  "function swapTokenForHbar(string tokenIn, uint256 amountIn, uint256 minAmountOut) external",
+  "function swapTokenForToken(string tokenIn, string tokenOut, uint256 amountIn, uint256 minAmountOut) external",
+  "function swapHbarForWager(uint256 minAmountOut) external payable",
+  "function swapWagerForHbar(uint256 amountIn, uint256 minAmountOut) external",
+  "function withdrawHbar(uint256 amount) external",
+  "function withdrawToken(string tokenSymbol, uint256 amount) external"
 ];
 
 export const WAGER_GAMES_ABI = [

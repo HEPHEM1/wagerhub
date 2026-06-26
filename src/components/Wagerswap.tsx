@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDownUp, Info, Settings, ChevronDown, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -10,13 +11,13 @@ import {
   EVM_TREASURY_ADDRESS, 
   ERC20_ABI, 
   HTS_PRECOMPILE_ADDRESS,
-  HTS_ABI
+  HTS_ABI,
+  EVM_USDC_ADDRESS,
+  EVM_USDT_ADDRESS
 } from "../evm";
 import { 
-  WAGER_SWAP_POOL_HEDERA_ID, 
-  WAGER_SWAP_POOL_ABI,
-  MOCK_WAGER_SWAP_POOL_ADDRESS,
-  getCleanFunctionBytes
+  MOCK_WAGER_SWAP_POOL_ADDRESS, 
+  WAGER_SWAP_POOL_ABI 
 } from "@/evm-contracts";
 import { HCSLiveFeed } from "./HCSLiveFeed";
 
@@ -74,6 +75,9 @@ export default function Wagerswap() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [slippage, setSlippage] = useState("0.5");
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
+  
+  // 🟢 Live AMM Reserves
+  const [reserves, setReserves] = useState<{ hbar: bigint; wager: bigint; usdc: bigint; usdt: bigint }>({ hbar: 0n, wager: 0n, usdc: 0n, usdt: 0n });
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
   const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
@@ -156,6 +160,40 @@ export default function Wagerswap() {
     return () => { isMounted = false; clearInterval(interval); };
   }, []);
 
+  // 🟢 Fetch Live Reserves from Pool
+  useEffect(() => {
+    let isMounted = true;
+    const fetchReserves = async () => {
+      try {
+        const provider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
+        // Get HBAR balance (8 decimals)
+        const hbarBal = await provider.getBalance(MOCK_WAGER_SWAP_POOL_ADDRESS);
+        
+        // Get token balances
+        const wagerContract = new ethers.Contract(EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, provider);
+        const usdcContract = new ethers.Contract(EVM_USDC_ADDRESS, ERC20_ABI, provider);
+        const usdtContract = new ethers.Contract(EVM_USDT_ADDRESS, ERC20_ABI, provider);
+        
+        const [wagerBal, usdcBal, usdtBal] = await Promise.all([
+          wagerContract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS),
+          usdcContract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS),
+          usdtContract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS)
+        ]);
+        
+        if (isMounted) {
+          setReserves({ hbar: hbarBal, wager: wagerBal, usdc: usdcBal, usdt: usdtBal });
+          console.log(`[Wagerswap] Live Pool: ${ethers.formatUnits(hbarBal, 8)} HBAR, ${ethers.formatUnits(wagerBal, 8)} WAGER, ${ethers.formatUnits(usdcBal, 6)} USDC, ${ethers.formatUnits(usdtBal, 6)} USDT`);
+        }
+      } catch (err) {
+        console.warn("[Wagerswap] Failed to fetch live reserves:", err);
+      }
+    };
+
+    fetchReserves();
+    const interval = setInterval(fetchReserves, 10_000); // 10s polling
+    return () => { isMounted = false; clearInterval(interval); };
+  }, []);
+
   // ── Rate computation ────────────────────────────────────────────────────────────────────
   // rate = pricesUsd[pay] / pricesUsd[receive]
   // $WAGER is always pricesUsd["HBAR"] / 10, enforced in the oracle above.
@@ -176,12 +214,31 @@ export default function Wagerswap() {
   const getReceiveAmount = (): string => {
     const amt = parseFloat(payAmount);
     if (!payAmount || isNaN(amt) || amt <= 0) return "";
+    
+    // Map symbol to reserve value and decimals
+    const getReserveInfo = (symbol: string) => {
+      if (symbol === "HBAR") return { reserve: reserves.hbar, dec: 8 };
+      if (symbol === "$WAGER") return { reserve: reserves.wager, dec: 8 };
+      if (symbol === "USDC") return { reserve: reserves.usdc, dec: 6 };
+      if (symbol === "USDT") return { reserve: reserves.usdt, dec: 6 };
+      return { reserve: 0n, dec: 8 };
+    };
+
+    const inInfo = getReserveInfo(payToken.symbol);
+    const outInfo = getReserveInfo(receiveToken.symbol);
+    
+    const reserveIn = Number(ethers.formatUnits(inInfo.reserve, inInfo.dec));
+    const reserveOut = Number(ethers.formatUnits(outInfo.reserve, outInfo.dec));
+
+    if (reserveIn > 0 && reserveOut > 0) {
+      // Pool has liquidity, use constant product AMM formula: dy = (y * dx) / (x + dx)
+      const amountOut = (reserveOut * amt) / (reserveIn + amt);
+      return amountOut.toFixed(outInfo.dec); 
+    }
+
+    // Fallback to oracle price
     const rate   = computeRate(payToken, receiveToken);
     const result = amt * rate;
-    if (result === 0) return "0";
-    if (result >= 1000)  return result.toFixed(2);
-    if (result >= 1)     return result.toFixed(4);
-    if (result >= 0.001) return result.toFixed(6);
     return result.toFixed(8);
   };
 
@@ -339,27 +396,46 @@ export default function Wagerswap() {
       setSwapStatus("swapping");
       let res;
 
+      // 🟢 Calculate minAmountOut based on slippage
+      const receiveAmountStr = getReceiveAmount();
+      const receiveAmountFloat = parseFloat(receiveAmountStr) || 0;
+      const slippagePercent = parseFloat(slippage) || 0.5;
+      const minAmountOutFloat = receiveAmountFloat * (1 - (slippagePercent / 100));
+      
+      const rDecimals = TOKEN_DECIMALS[receiveToken.symbol] ?? receiveToken.decimals;
+      const minAmountOutTokens = Math.floor(minAmountOutFloat * Math.pow(10, rDecimals)).toString();
+
+      const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+      const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+
       if (payToken.symbol === "HBAR") {
-        // HBAR -> WAGER via Smart Contract
-        // This safely bypasses Hedera's Ed25519 Treasury EVM limitations by using a native EVM contract!
+        // HBAR -> Token via Smart Contract
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
-          "swapHbarForWager",
-          [],
+          "swapHbarForToken",
+          [receiveToken.symbol, minAmountOutTokens],
           payAmount
         );
-      } else {
+      } else if (receiveToken.symbol === "HBAR") {
         // Token -> HBAR via Smart Contract Pool
-        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
-        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
-        console.log(`[Wagerswap] Swap Pool Call | Decimals: ${decimals}`);
+        console.log(`[Wagerswap] Swap Pool Call | MinOut: ${minAmountOutTokens}`);
         
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapTokenForHbar",
-          [payToken.symbol, amountInTokens.toString()]
+          [payToken.symbol, amountInTokens.toString(), minAmountOutTokens]
+        );
+      } else {
+        // Token -> Token via Smart Contract Pool
+        console.log(`[Wagerswap] Token->Token Pool Call | MinOut: ${minAmountOutTokens}`);
+        
+        res = await executeEVMSmartContract(
+          MOCK_WAGER_SWAP_POOL_ADDRESS,
+          WAGER_SWAP_POOL_ABI,
+          "swapTokenForToken",
+          [payToken.symbol, receiveToken.symbol, amountInTokens.toString(), minAmountOutTokens]
         );
       }
       
@@ -369,46 +445,7 @@ export default function Wagerswap() {
       
       const txId = res.txId || "Confirmed on-chain (duplicate tx recovered)";
 
-      // ── Step 4: Backend Payout (Reverse Swaps Only) ────────────────────────
-      // For HBAR -> WAGER, the smart contract handled it automatically.
-      // But for ERC-20 -> HBAR, we transferred the token to the Treasury, so
-      // we MUST trigger the backend API to send the HBAR payout back to the user!
-      if (payToken.symbol !== "HBAR") {
-        setSwapStatus("payout");
-
-        let hederaAccountId = accountId;
-        if (accountId && accountId.startsWith("0x")) {
-          try {
-            const mirrorRes = await fetch(`${MIRROR_NODE_BASE}/accounts/${accountId}`);
-            if (mirrorRes.ok) {
-              const mirrorData = await mirrorRes.json();
-              hederaAccountId = mirrorData?.account || accountId;
-              console.log(`[Wagerswap] Resolved EVM ${accountId} → Hedera ${hederaAccountId}`);
-            }
-          } catch {
-            console.warn("[Wagerswap] Could not resolve Hedera account ID, using EVM address");
-          }
-        }
-
-        console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${hederaAccountId}`);
-
-        const payoutRes = await fetch("/api/payout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            accountId: hederaAccountId, 
-            receiveTokenId: receiveToken.tokenId,
-            receiveAmountStr: receiveAmount,
-            transactionId: txId 
-          })
-        });
-
-        if (!payoutRes.ok) {
-          const data = await payoutRes.json();
-          console.error("BACKEND CRASH REASON:", data.error);
-          throw new Error(`Swap successful, but Backend Payout failed: ${data.error || "Unknown server error"}`);
-        }
-      }
+      // Smart contract handles payout directly for all token types.
 
       // ── Step 5: Success & Reward Calculation ───────────────────────────────
       setSwapStatus("success");

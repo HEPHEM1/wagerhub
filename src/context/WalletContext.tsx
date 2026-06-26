@@ -273,7 +273,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
         isInitialized: true,
         walletType: "EVM",
         accountId: address || null,
-        network: "testnet",
+        network: chainId === 296 ? "testnet" : (chainId === 295 ? "mainnet" : "unknown"),
         wagerPoints,
         wagerCredits,
         balances,
