@@ -203,7 +203,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     return await provider.getSigner(walletClient.account.address);
   };
 
-  const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
+  const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0", customGasLimit?: number) => {
     try {
       const signer = await getEthersSigner();
       
@@ -211,7 +211,13 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       // This solves the UNSUPPORTED_OPERATION (contract runner does not support sending transactions) error
       const contract = new ethers.Contract(contractAddress, abi, signer);
       
-      const txOptions: any = { gasLimit: 5000000 };
+      const txOptions: any = {};
+      if (customGasLimit) {
+        txOptions.gasLimit = customGasLimit;
+      } else {
+        txOptions.gasLimit = 5000000;
+      }
+      
       if (value && value !== "0") {
         txOptions.value = ethers.parseEther(value);
       }
@@ -220,17 +226,19 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       const receipt = await tx.wait();
       return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
     } catch (e: any) {
-      const msg: string = e?.message || e?.reason || String(e);
-      const code = e?.code || e?._code;
-      if (code === 11 || msg.toLowerCase().includes("duplicate")) {
-        return { txId: null, status: "SUCCESS" };
+      console.error("[Wagmi] Smart Contract execution failed:", e);
+      let msg = e.message;
+      if (e.info?.error?.message) {
+        msg = e.info.error.message;
+      } else if (e.reason) {
+        msg = e.reason;
       }
       throw new Error(msg || "Smart contract call failed.");
     }
   };
 
   const executeEVMTransfer = async (tokenAddress: string, toAddress: string, amountTokens: string) => {
-    return executeEVMSmartContract(tokenAddress, ERC20_ABI, "transfer", [toAddress, amountTokens]);
+    return executeEVMSmartContract(tokenAddress, ERC20_ABI, "transfer", [toAddress, amountTokens], "0", 100000);
   };
 
   const executeEVMHbarTransfer = async (toAddress: string, amountHbar: string) => {
