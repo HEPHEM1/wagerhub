@@ -355,9 +355,48 @@ export default function Wagerswap() {
       
       const txId = res.txId || "Confirmed on-chain (duplicate tx recovered)";
 
-      // ── Step 4: Success & Reward Calculation ───────────────────────────────
-      // Since the Smart Contract atomically handles the HBAR -> WAGER swap on-chain,
-      // we do NOT need to trigger the backend /api/payout API. 
+      // ── Step 4: Backend Payout (Reverse Swaps Only) ────────────────────────
+      // For HBAR -> WAGER, the smart contract handled it automatically.
+      // But for ERC-20 -> HBAR, we transferred the token to the Treasury, so
+      // we MUST trigger the backend API to send the HBAR payout back to the user!
+      if (payToken.symbol !== "HBAR") {
+        setSwapStatus("payout");
+
+        let hederaAccountId = accountId;
+        if (accountId && accountId.startsWith("0x")) {
+          try {
+            const mirrorRes = await fetch(`${MIRROR_NODE_BASE}/accounts/${accountId}`);
+            if (mirrorRes.ok) {
+              const mirrorData = await mirrorRes.json();
+              hederaAccountId = mirrorData?.account || accountId;
+              console.log(`[Wagerswap] Resolved EVM ${accountId} → Hedera ${hederaAccountId}`);
+            }
+          } catch {
+            console.warn("[Wagerswap] Could not resolve Hedera account ID, using EVM address");
+          }
+        }
+
+        console.log(`[Wagerswap] Requesting backend payout of ${receiveAmount} ${receiveToken.symbol} to ${hederaAccountId}`);
+
+        const payoutRes = await fetch("/api/payout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            accountId: hederaAccountId, 
+            receiveTokenId: receiveToken.tokenId,
+            receiveAmountStr: receiveAmount,
+            transactionId: txId 
+          })
+        });
+
+        if (!payoutRes.ok) {
+          const data = await payoutRes.json();
+          console.error("BACKEND CRASH REASON:", data.error);
+          throw new Error(`Swap successful, but Backend Payout failed: ${data.error || "Unknown server error"}`);
+        }
+      }
+
+      // ── Step 5: Success & Reward Calculation ───────────────────────────────
       setSwapStatus("success");
 
       console.log("[Wagerswap] ✅ Swap successful. Tx ID:", txId);
