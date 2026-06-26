@@ -169,15 +169,20 @@ export default function Wagerswap() {
         // Get HBAR balance (8 decimals)
         const hbarBal = await provider.getBalance(MOCK_WAGER_SWAP_POOL_ADDRESS);
         
-        // Get token balances
         const wagerContract = new ethers.Contract(EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, provider);
         const usdcContract = new ethers.Contract(EVM_USDC_ADDRESS, ERC20_ABI, provider);
         const usdtContract = new ethers.Contract(EVM_USDT_ADDRESS, ERC20_ABI, provider);
         
+        // Fetch balances individually so one missing token doesn't break everything
+        const safeBalanceOf = async (contract: ethers.Contract) => {
+          try { return await contract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS); }
+          catch { return 0n; }
+        };
+
         const [wagerBal, usdcBal, usdtBal] = await Promise.all([
-          wagerContract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS),
-          usdcContract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS),
-          usdtContract.balanceOf(MOCK_WAGER_SWAP_POOL_ADDRESS)
+          safeBalanceOf(wagerContract),
+          safeBalanceOf(usdcContract),
+          safeBalanceOf(usdtContract)
         ]);
         
         if (isMounted) {
