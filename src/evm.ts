@@ -5,6 +5,7 @@ export const EVM_TREASURY_ADDRESS = "0x0000000000000000000000000000000000867f94"
 
 export const ERC20_ABI = [
   "function transfer(address to, uint256 amount) external returns (bool)",
+  "function approve(address spender, uint256 amount) external returns (bool)",
   "function balanceOf(address account) view returns (uint256)",
   "function decimals() view returns (uint8)"
 ];

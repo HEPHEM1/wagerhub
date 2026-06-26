@@ -300,10 +300,31 @@ export default function Wagerswap() {
     setIsProcessing(true);
 
     try {
-      // ── Step 1: ERC-20 approval
+      // ── Step 1: ERC20 approval
       if (requiresApproval && !isApproved) {
         setSwapStatus("associating");
-        await new Promise((r) => setTimeout(r, 800)); // simulate approval round-trip
+        
+        let tokenEVMAddress = payToken.tokenId;
+        if (tokenEVMAddress.includes(".")) {
+           const parts = tokenEVMAddress.split('.');
+           const num = BigInt(parts[2]);
+           tokenEVMAddress = "0x" + num.toString(16).padStart(40, '0');
+        }
+        
+        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+
+        const appRes = await executeEVMSmartContract(
+          tokenEVMAddress,
+          ERC20_ABI,
+          "approve",
+          [MOCK_WAGER_SWAP_POOL_ADDRESS, amountInTokens.toString()]
+        );
+        
+        if (!appRes || appRes.status !== "SUCCESS") {
+          throw new Error("Approval rejected or failed.");
+        }
+
         setIsApproved(true);
         setSwapStatus("idle");
         setIsProcessing(false);
@@ -329,23 +350,16 @@ export default function Wagerswap() {
           payAmount
         );
       } else {
-        // Fallback: ERC20 Token Transfer
+        // Token -> HBAR via Smart Contract Pool
         const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
         const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
-        console.log(`[Wagerswap] ERC20 Transfer | Decimals: ${decimals}`);
+        console.log(`[Wagerswap] Swap Pool Call | Decimals: ${decimals}`);
         
-        // Convert Hedera Token ID to EVM Address if needed
-        let tokenEVMAddress = payToken.tokenId;
-        if (tokenEVMAddress.includes(".")) {
-           const parts = tokenEVMAddress.split('.');
-           const num = BigInt(parts[2]);
-           tokenEVMAddress = "0x" + num.toString(16).padStart(40, '0');
-        }
-
-        res = await executeEVMTransfer(
-          tokenEVMAddress,
-          EVM_TREASURY_ADDRESS,
-          amountInTokens.toString() // Needs proper bignumber parsing if scaling is high
+        res = await executeEVMSmartContract(
+          MOCK_WAGER_SWAP_POOL_ADDRESS,
+          WAGER_SWAP_POOL_ABI,
+          "swapTokenForHbar",
+          [payToken.symbol, amountInTokens.toString()]
         );
       }
       

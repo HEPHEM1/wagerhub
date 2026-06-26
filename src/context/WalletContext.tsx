@@ -203,7 +203,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     return await provider.getSigner(walletClient.account.address);
   };
 
-  const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0", customGasLimit?: number) => {
+  const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
     try {
       const signer = await getEthersSigner();
       
@@ -212,11 +212,6 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       const contract = new ethers.Contract(contractAddress, abi, signer);
       
       const txOptions: any = {};
-      if (customGasLimit) {
-        txOptions.gasLimit = customGasLimit;
-      } else {
-        txOptions.gasLimit = 5000000;
-      }
       
       if (value && value !== "0") {
         txOptions.value = ethers.parseEther(value);
@@ -238,7 +233,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   };
 
   const executeEVMTransfer = async (tokenAddress: string, toAddress: string, amountTokens: string) => {
-    return executeEVMSmartContract(tokenAddress, ERC20_ABI, "transfer", [toAddress, amountTokens], "0", 100000);
+    return executeEVMSmartContract(tokenAddress, ERC20_ABI, "transfer", [toAddress, amountTokens]);
   };
 
   const executeEVMHbarTransfer = async (toAddress: string, amountHbar: string) => {
