@@ -252,7 +252,7 @@ export default function Wagerswap() {
   // ── Routing (all 4×4 pairs are direct) ───────────────────────────────────────────────────
   const route        = getRoute(payToken, receiveToken);
   const isMultiHop   = false;  // No multi-hop in 4-token universe
-  const requiresApproval = payToken.type === "erc20" && payToken.symbol !== "$WAGER";
+  const requiresApproval = payToken.type === "erc20";
   const isHopRequired    = false;
 
   const getBalanceForToken = (symbol: string) => {
