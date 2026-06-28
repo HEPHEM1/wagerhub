@@ -223,6 +223,12 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     } catch (e: any) {
       console.error("[Wagmi] Smart Contract execution failed:", e);
       let msg = e.message;
+      
+      // Handle strict Wagmi chain mismatch errors cleanly
+      if (msg && msg.includes("ConnectorChainMismatchError") || (msg && msg.includes("chain") && msg.includes("295"))) {
+        throw new Error("⚠️ Network Mismatch: Your HashPack wallet is currently set to Hedera Mainnet, but this app requires Hedera Testnet. Please open the HashPack extension, click the network dropdown at the top, and switch to Testnet before swapping!");
+      }
+
       if (e.info?.error?.message) {
         msg = e.info.error.message;
       } else if (e.reason) {
