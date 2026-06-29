@@ -42,7 +42,6 @@ const wagmiAdapter = new WagmiAdapter({
 createAppKit({
   adapters: [wagmiAdapter],
   networks: [hederaTestnet],
-  defaultNetwork: hederaTestnet,
   projectId: WC_PROJECT_ID,
   metadata: {
     name: "WagerHub",
