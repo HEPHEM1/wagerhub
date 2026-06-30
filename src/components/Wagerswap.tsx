@@ -166,8 +166,9 @@ export default function Wagerswap() {
     const fetchReserves = async () => {
       try {
         const provider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
-        // Get HBAR balance (8 decimals)
-        const hbarBal = await provider.getBalance(MOCK_WAGER_SWAP_POOL_ADDRESS);
+        // Get HBAR balance (wei = 18 decimals, convert to 8 decimals)
+        const hbarBalWei = await provider.getBalance(MOCK_WAGER_SWAP_POOL_ADDRESS);
+        const hbarBal = hbarBalWei / 10000000000n;
         
         const wagerContract = new ethers.Contract(EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, provider);
         const usdcContract = new ethers.Contract(EVM_USDC_ADDRESS, ERC20_ABI, provider);

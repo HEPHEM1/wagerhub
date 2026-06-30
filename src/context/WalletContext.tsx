@@ -142,7 +142,7 @@ async function fetchTokenBalance(accountId: string, tokenId: string, expectedDec
 function WalletProviderInner({ children }: { children: ReactNode }) {
   const { address, isConnected, isConnecting, chainId } = useAccount();
   const { disconnectAsync } = useDisconnect();
-  const { switchChain } = useSwitchChain();
+  const { switchChain, switchChainAsync } = useSwitchChain();
 
   // Force-switch network if the wallet is reporting the wrong chain (e.g. HashPack returning 295 instead of 296)
   useEffect(() => {
@@ -206,6 +206,11 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
 
   const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
     try {
+      if (chainId !== 296 && switchChainAsync) {
+        console.warn(`[Wagmi] Preemptive check: Wallet is on chain ${chainId}. Forcing switch to Testnet (296) before execution...`);
+        await switchChainAsync({ chainId: 296 });
+      }
+
       const signer = await getEthersSigner();
       
       // Instantiate contract with provider, then explicitly connect the signer
@@ -225,9 +230,18 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       console.error("[Wagmi] Smart Contract execution failed:", e);
       let msg = e.message;
       
-      // Handle strict Wagmi chain mismatch errors cleanly
+      // Handle strict Wagmi chain mismatch errors cleanly by forcing a switch
       if (msg && msg.includes("ConnectorChainMismatchError") || (msg && msg.includes("chain") && msg.includes("295"))) {
-        throw new Error("⚠️ Network Mismatch: Your HashPack wallet is currently set to Hedera Mainnet, but this app requires Hedera Testnet. Please open the HashPack extension, click the network dropdown at the top, and switch to Testnet before swapping!");
+        console.warn("[Wagmi] Caught ConnectorChainMismatchError. Attempting to force HashPack to switch to Testnet (296)...");
+        if (switchChainAsync) {
+          try {
+            await switchChainAsync({ chainId: 296 });
+            throw new Error("We requested HashPack to switch to Testnet. Please approve the network switch in your wallet and try swapping again.");
+          } catch (switchError) {
+            console.error("[Wagmi] Failed to force switch chain:", switchError);
+          }
+        }
+        throw new Error("⚠️ Network Mismatch: Your HashPack wallet is stuck on Hedera Mainnet. We attempted to automatically switch your network, but it was rejected or unsupported. Please manually open the HashPack extension, click the network dropdown at the top right, and switch to Testnet before swapping!");
       }
 
       if (e.info?.error?.message) {
