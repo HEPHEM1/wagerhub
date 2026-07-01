@@ -1,7 +1,7 @@
 // Hedera EVM addresses: 0x + contract num in hex, left-padded to 40 chars
 // 0.0.9289511 → 0x8DBF27 → 0x0000000000000000000000000000000000008dbf27 (but that's 41 hex chars)
 // Correct: 9289511 decimal = 0x8DBF27 (6 hex), padded to 40 = 00000000000000000000000000000000008dbf27
-export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x8394B7DC655c3b70c4b785f20F25fe8bD6B74B95";
+export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0xaBF06E296baF863CB0634f14D7b35BF336a5675e"; // final - correct signer + correct Mock USDT/USDC
 export const MOCK_WAGER_GAMES_ADDRESS     = "0xC68B5529Aeb410D56312ed1Bac6268e751D489cB";
 
 export const WAGER_SWAP_POOL_HEDERA_ID = "0.0.9289511";
