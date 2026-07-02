@@ -421,34 +421,50 @@ export default function Wagerswap() {
       const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
       const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
 
+      const isOracleRoute = (payToken.symbol === "HBAR" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT")) ||
+                            ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "HBAR");
+      
+      let priceUpdateData: string[] = [];
+      let pythFee = 0n;
+      
+      if (isOracleRoute) {
+        try {
+          const HBAR_USD_FEED = "0x5d9095dd7c525f385c4bf239f1cbf5cc95b12da6d1efad742dc6032d164d9620";
+          const pythRes = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`);
+          if (!pythRes.ok) throw new Error("Failed to fetch Pyth data");
+          const pythJson = await pythRes.json();
+          priceUpdateData = pythJson.binary.data.map((d: string) => "0x" + d);
+          pythFee = ethers.parseEther("1"); // Send 1 HBAR for Pyth fee (excess is refunded by contract)
+        } catch (err) {
+          throw new Error("Failed to fetch live oracle price. Try again.");
+        }
+      }
+
       if (payToken.symbol === "HBAR") {
-        // HBAR -> Token via Smart Contract
+        const msgValue = pythFee > 0 ? (ethers.parseEther(payAmount) + pythFee).toString() : payAmount;
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapHbarForToken",
-          [receiveToken.symbol, minAmountOutTokens],
-          payAmount
+          [receiveToken.symbol, minAmountOutTokens, priceUpdateData],
+          pythFee > 0 ? ethers.formatEther(msgValue) : payAmount
         );
       } else if (receiveToken.symbol === "HBAR") {
-        // Token -> HBAR via Smart Contract Pool
         console.log(`[Wagerswap] Swap Pool Call | MinOut: ${minAmountOutTokens}`);
-        
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapTokenForHbar",
-          [payToken.symbol, amountInTokens.toString(), minAmountOutTokens]
+          [payToken.symbol, amountInTokens.toString(), minAmountOutTokens, priceUpdateData],
+          pythFee > 0n ? ethers.formatEther(pythFee) : undefined
         );
       } else {
-        // Token -> Token via Smart Contract Pool
         console.log(`[Wagerswap] Token->Token Pool Call | MinOut: ${minAmountOutTokens}`);
-        
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapTokenForToken",
-          [payToken.symbol, receiveToken.symbol, amountInTokens.toString(), minAmountOutTokens]
+          [payToken.symbol, receiveToken.symbol, amountInTokens.toString(), minAmountOutTokens, priceUpdateData]
         );
       }
       
@@ -514,7 +530,7 @@ export default function Wagerswap() {
         } else if (message.includes("INSUFFICIENT_GAS")) {
           message = "Gas too low. Contact support — gas is set to 4M.";
         } else if (message.includes("CONTRACT_REVERT_EXECUTED")) {
-          message = "Router contract reverted. Slippage too high or pool has insufficient liquidity.";
+          message = "Router contract reverted. Slippage too high or pool has insufficient liquidity. Note: Stablecoin to WAGER swaps are explicitly blocked by the Hybrid Router.";
         }
       }
       setSwapError(message);
@@ -753,13 +769,18 @@ export default function Wagerswap() {
                       {TOKENS.map((token) => (
                         <button
                           key={token.id}
-                          disabled={token.symbol === payToken.symbol}
+                          disabled={token.symbol === payToken.symbol || 
+                                    ((token.symbol === "USDC" || token.symbol === "USDT") && payToken.symbol === "$WAGER") ||
+                                    (token.symbol === "$WAGER" && (payToken.symbol === "USDC" || payToken.symbol === "USDT"))}
                           onClick={() => {
                             setReceiveToken(token);
                             setIsReceiveTokenSelectorOpen(false);
                           }}
                           className={`w-full flex items-center gap-4 px-6 py-4 transition-colors text-left border-b border-white/5 last:border-0 ${
-                            token.symbol === payToken.symbol ? 'opacity-30 cursor-not-allowed bg-black/40' : 'hover:bg-wager-lime/10 cursor-pointer'
+                            (token.symbol === payToken.symbol || 
+                             ((token.symbol === "USDC" || token.symbol === "USDT") && payToken.symbol === "$WAGER") ||
+                             (token.symbol === "$WAGER" && (payToken.symbol === "USDC" || payToken.symbol === "USDT"))) 
+                               ? 'opacity-30 cursor-not-allowed bg-black/40' : 'hover:bg-wager-lime/10 cursor-pointer'
                           }`}
                         >
                           <img src={token.iconUrl} alt={token.symbol} className="w-6 h-6 rounded-full" />
