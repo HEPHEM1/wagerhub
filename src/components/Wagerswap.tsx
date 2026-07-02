@@ -200,11 +200,29 @@ export default function Wagerswap() {
     return () => { isMounted = false; clearInterval(interval); };
   }, []);
 
+  // Map symbol to reserve value and decimals
+  const getReserveInfo = (symbol: string) => {
+    if (symbol === "HBAR") return { reserve: reserves.hbar, dec: 8 };
+    if (symbol === "$WAGER") return { reserve: reserves.wager, dec: 8 };
+    if (symbol === "USDC") return { reserve: reserves.usdc, dec: 6 };
+    if (symbol === "USDT") return { reserve: reserves.usdt, dec: 6 };
+    return { reserve: 0n, dec: 8 };
+  };
+
   // ── Rate computation ────────────────────────────────────────────────────────────────────
-  // rate = pricesUsd[pay] / pricesUsd[receive]
-  // $WAGER is always pricesUsd["HBAR"] / 10, enforced in the oracle above.
-  // Decimal normalization is applied on-chain (TOKEN_DECIMALS), not here.
+  // Calculate spot rate from AMM reserves if available, otherwise fallback to USD oracle
   const computeRate = (pay: Token, receive: Token): number => {
+    const inInfo = getReserveInfo(pay.symbol);
+    const outInfo = getReserveInfo(receive.symbol);
+    
+    const reserveIn = Number(ethers.formatUnits(inInfo.reserve, inInfo.dec));
+    const reserveOut = Number(ethers.formatUnits(outInfo.reserve, outInfo.dec));
+
+    if (reserveIn > 0 && reserveOut > 0) {
+      return reserveOut / reserveIn;
+    }
+
+    // Fallback to USD oracle rate
     const payUsd     = pricesUsd[pay.symbol]     ?? 0.01;
     const receiveUsd = pricesUsd[receive.symbol] ?? 0.01;
     if (receiveUsd === 0) return 0;
@@ -215,21 +233,12 @@ export default function Wagerswap() {
     const rate = computeRate(payToken, receiveToken);
     const precision = rate < 0.0001 ? 8 : rate < 0.01 ? 6 : rate < 10 ? 4 : 2;
     setExchangeRate(rate.toFixed(precision));
-  }, [payToken, receiveToken, pricesUsd]);
+  }, [payToken, receiveToken, pricesUsd, reserves]);
 
   const getReceiveAmount = (): string => {
     const amt = parseFloat(payAmount);
     if (!payAmount || isNaN(amt) || amt <= 0) return "";
     
-    // Map symbol to reserve value and decimals
-    const getReserveInfo = (symbol: string) => {
-      if (symbol === "HBAR") return { reserve: reserves.hbar, dec: 8 };
-      if (symbol === "$WAGER") return { reserve: reserves.wager, dec: 8 };
-      if (symbol === "USDC") return { reserve: reserves.usdc, dec: 6 };
-      if (symbol === "USDT") return { reserve: reserves.usdt, dec: 6 };
-      return { reserve: 0n, dec: 8 };
-    };
-
     const inInfo = getReserveInfo(payToken.symbol);
     const outInfo = getReserveInfo(receiveToken.symbol);
     
