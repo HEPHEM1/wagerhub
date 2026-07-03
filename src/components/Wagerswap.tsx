@@ -444,7 +444,8 @@ export default function Wagerswap() {
       
       if (isOracleRoute) {
         try {
-          // Pyth Testnet (Beta) ID for HBAR/USD
+          // Pyth HBAR/USD feed ID – the ONLY ID Hermes-Beta (testnet) recognises for HBAR/USD
+          // Verified by forensic audit: 0x83eb07... is UNKNOWN to hermes-beta; this ID returns live data.
           const HBAR_USD_FEED = "0xf2ef5dc6156e6cdccda6c315f3fc6de2bf37e9aecbc9b5efc51de98096c3e7c6";
           const pythUrl = `https://hermes-beta.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`;
           console.log(`[Wagerswap] Fetching Pyth Data: ${pythUrl}`);
