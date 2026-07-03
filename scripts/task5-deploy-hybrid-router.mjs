@@ -8,8 +8,8 @@ const USDC_TOKEN  = "0x00000000000000000000000000000000008f4312";
 
 // Pyth address on Hedera Testnet
 const PYTH_ADDRESS = "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729";
-// Pyth price feed ID for HBAR/USD (Testnet)
-const HBAR_USD_FEED = "0xf2ef5dc6156e6cdccda6c315f3fc6de2bf37e9aecbc9b5efc51de98096c3e7c6";
+// Pyth price feed ID for HBAR/USD (Mainnet/Testnet share same ID)
+const HBAR_USD_FEED = "0x83eb07f0fdd8ecafaf9637cba5dc42299cf7e18985161d7ea948148b6c0e5a95";
 
 const ERC20_ABI = [
   'function transfer(address to, uint256 amount) external returns (bool)',
