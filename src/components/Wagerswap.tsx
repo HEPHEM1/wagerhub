@@ -688,13 +688,18 @@ export default function Wagerswap() {
                       {TOKENS.map((token) => (
                         <button
                           key={token.id}
-                          disabled={token.symbol === receiveToken.symbol}
+                          disabled={token.symbol === receiveToken.symbol || 
+                                    ((token.symbol === "USDC" || token.symbol === "USDT") && receiveToken.symbol === "$WAGER") ||
+                                    (token.symbol === "$WAGER" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT"))}
                           onClick={() => {
                             setPayToken(token);
                             setIsPayTokenSelectorOpen(false);
                           }}
                           className={`w-full flex items-center gap-4 px-6 py-4 transition-colors text-left border-b border-white/5 last:border-0 ${
-                            token.symbol === receiveToken.symbol ? 'opacity-30 cursor-not-allowed bg-black/40' : 'hover:bg-wager-cyan/10 cursor-pointer'
+                            (token.symbol === receiveToken.symbol || 
+                             ((token.symbol === "USDC" || token.symbol === "USDT") && receiveToken.symbol === "$WAGER") ||
+                             (token.symbol === "$WAGER" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT"))) 
+                               ? 'opacity-30 cursor-not-allowed bg-black/40' : 'hover:bg-wager-cyan/10 cursor-pointer'
                           }`}
                         >
                           <img src={token.iconUrl} alt={token.symbol} className="w-6 h-6 rounded-full" />
@@ -914,16 +919,20 @@ export default function Wagerswap() {
             const numAmount = parseFloat(payAmount) || 0;
             const currentBalance = getNumericBalance(payToken.symbol);
             const isInsufficientBalance = numAmount > currentBalance;
+            const isBlockedRoute = ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "$WAGER") ||
+                                   (payToken.symbol === "$WAGER" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT"));
 
             return (
               <motion.button
-                whileHover={!isProcessing && !isInsufficientBalance ? { scale: 1.01 } : {}}
-                whileTap={!isProcessing && !isInsufficientBalance ? { scale: 0.99 } : {}}
+                whileHover={!isProcessing && !isInsufficientBalance && !isBlockedRoute ? { scale: 1.01 } : {}}
+                whileTap={!isProcessing && !isInsufficientBalance && !isBlockedRoute ? { scale: 0.99 } : {}}
                 onClick={executeSwap}
-                disabled={!payAmount || isProcessing || !isConnected || isInsufficientBalance}
+                disabled={!payAmount || isProcessing || !isConnected || isInsufficientBalance || isBlockedRoute}
                 className={`w-full font-black uppercase tracking-widest py-6 rounded-3xl transition-all text-2xl flex items-center justify-center gap-3
                   ${!isConnected
                     ? 'bg-wager-charcoal text-zinc-500 cursor-not-allowed border-2 border-white/5'
+                    : isBlockedRoute
+                    ? 'bg-wager-charcoal text-wager-red/50 cursor-not-allowed border-2 border-wager-red/20'
                     : !payAmount
                     ? 'bg-wager-charcoal text-zinc-600 cursor-not-allowed border-2 border-white/5'
                     : isProcessing
@@ -937,6 +946,8 @@ export default function Wagerswap() {
               >
                 {!isConnected ? (
                   <>Link HashPack to Swap</>
+                ) : isBlockedRoute ? (
+                  <>ROUTE NOT ALLOWED</>
                 ) : isInsufficientBalance ? (
                   <>INSUFFICIENT {payToken.symbol} BALANCE</>
                 ) : isProcessing && swapStatus === "associating" ? (
