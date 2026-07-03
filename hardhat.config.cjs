@@ -10,6 +10,9 @@ module.exports = {
     hedera: {
       url: "https://testnet.hashio.io/api",
       accounts: OPERATOR_KEY ? [OPERATOR_KEY] : [],
+      // Hedera requires explicit gas settings — auto-estimation triggers INSUFFICIENT_TX_FEE
+      gas: 4_000_000,
+      gasPrice: 1650000000000, // 1650 Gwei — Hedera Testnet minimum
     },
   },
 };

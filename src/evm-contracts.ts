@@ -2,16 +2,19 @@
 // 0.0.9289511 → 0x8DBF27 → 0x0000000000000000000000000000000000008dbf27 (but that's 41 hex chars)
 // Correct: 9289511 decimal = 0x8DBF27 (6 hex), padded to 40 = 00000000000000000000000000000000008dbf27
 // 0.0.9289511 decimal = 0x8DBF27 (6 hex), padded to 40 = 00000000000000000000000000000000008dbf27
-export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0xC4093DB93CbC271d9EE8A667846d8dE79C92e77B"; // Hybrid Router (feed: 0xf2ef5d...)
+export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x6537858BbFAC09f4C3aBfCb1bf7A72867fFeB6bd"; // No-Oracle Hybrid Router
 export const MOCK_WAGER_GAMES_ADDRESS     = "0xC68B5529Aeb410D56312ed1Bac6268e751D489cB";
 
 export const WAGER_SWAP_POOL_HEDERA_ID = "0.0.9289511";
 export const WAGER_GAMES_HEDERA_ID = "0.0.9290337";
 
 export const WAGER_SWAP_POOL_ABI = [
-  "function swapHbarForToken(string tokenOutSymbol, uint256 minAmountOut, bytes[] calldata priceUpdateData) external payable",
-  "function swapTokenForHbar(string tokenInSymbol, uint256 amountIn, uint256 minAmountOut, bytes[] calldata priceUpdateData) external payable",
-  "function swapTokenForToken(string tokenInSymbol, string tokenOutSymbol, uint256 amountIn, uint256 minAmountOut, bytes[] calldata priceUpdateData) external payable",
+  // No-Oracle edition: priceUpdateData removed, no Pyth fee
+  "function swapHbarForToken(string tokenOutSymbol, uint256 minAmountOut) external payable",
+  "function swapTokenForHbar(string tokenInSymbol, uint256 amountIn, uint256 minAmountOut) external payable",
+  "function swapTokenForToken(string tokenInSymbol, string tokenOutSymbol, uint256 amountIn, uint256 minAmountOut) external",
+  "function setHbarUsdPrice(uint256 newPrice) external",
+  "function hbarUsdPrice() external view returns (uint256)",
   "function withdrawLiquidity(address tokenAddress, uint256 amount) external"
 ];
 

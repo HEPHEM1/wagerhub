@@ -436,63 +436,33 @@ export default function Wagerswap() {
       const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
       const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
 
-      const isOracleRoute = (payToken.symbol === "HBAR" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT")) ||
-                            ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "HBAR");
-      
-      let priceUpdateData: string[] = [];
-      let pythFee = 0n;
-      
-      if (isOracleRoute) {
-        try {
-          // Pyth HBAR/USD feed ID – the ONLY ID Hermes-Beta (testnet) recognises for HBAR/USD
-          // Verified by forensic audit: 0x83eb07... is UNKNOWN to hermes-beta; this ID returns live data.
-          const HBAR_USD_FEED = "0xf2ef5dc6156e6cdccda6c315f3fc6de2bf37e9aecbc9b5efc51de98096c3e7c6";
-          const pythUrl = `https://hermes-beta.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`;
-          console.log(`[Wagerswap] Fetching Pyth Data: ${pythUrl}`);
-          const pythRes = await fetch(pythUrl);
-          if (!pythRes.ok) throw new Error(`Failed to fetch Pyth data: ${pythRes.status}`);
-          const pythJson = await pythRes.json();
-          priceUpdateData = pythJson.binary.data.map((d: string) => "0x" + d);
-          
-          // Dynamically fetch the required Pyth fee for this specific update payload
-          const pythProvider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
-          const pythContract = new ethers.Contract(
-            "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729",
-            ["function getUpdateFee(bytes[] memory updateData) public view returns (uint256 feeAmount)"],
-            pythProvider
-          );
-          pythFee = await pythContract.getUpdateFee(priceUpdateData);
-          console.log(`[Wagerswap] Pyth Update Fee fetched: ${ethers.formatEther(pythFee)} HBAR`);
-        } catch (err) {
-          throw new Error("Failed to fetch live oracle price. Try again.");
-        }
-      }
-
+      // No-Oracle edition: contract uses a fixed owner-settable hbarUsdPrice.
+      // No Hermes fetch, no Pyth fee, no priceUpdateData parameter needed.
       if (payToken.symbol === "HBAR") {
-        const msgValue = pythFee > 0 ? (ethers.parseEther(payAmount) + pythFee).toString() : payAmount;
+        // All msg.value is the swap amount — no oracle fee to add
+        console.log(`[Wagerswap] HBAR->Token | amount: ${payAmount} HBAR | minOut: ${minAmountOutTokens}`);
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapHbarForToken",
-          [receiveToken.symbol, minAmountOutTokens, priceUpdateData],
-          pythFee > 0 ? ethers.formatEther(msgValue) : payAmount
+          [receiveToken.symbol, minAmountOutTokens],
+          payAmount
         );
       } else if (receiveToken.symbol === "HBAR") {
-        console.log(`[Wagerswap] Swap Pool Call | MinOut: ${minAmountOutTokens}`);
+        console.log(`[Wagerswap] Token->HBAR | amount: ${amountInTokens} | minOut: ${minAmountOutTokens}`);
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapTokenForHbar",
-          [payToken.symbol, amountInTokens.toString(), minAmountOutTokens, priceUpdateData],
-          pythFee > 0n ? ethers.formatEther(pythFee) : undefined
+          [payToken.symbol, amountInTokens.toString(), minAmountOutTokens]
         );
       } else {
-        console.log(`[Wagerswap] Token->Token Pool Call | MinOut: ${minAmountOutTokens}`);
+        console.log(`[Wagerswap] Token->Token | minOut: ${minAmountOutTokens}`);
         res = await executeEVMSmartContract(
           MOCK_WAGER_SWAP_POOL_ADDRESS,
           WAGER_SWAP_POOL_ABI,
           "swapTokenForToken",
-          [payToken.symbol, receiveToken.symbol, amountInTokens.toString(), minAmountOutTokens, priceUpdateData]
+          [payToken.symbol, receiveToken.symbol, amountInTokens.toString(), minAmountOutTokens]
         );
       }
       
@@ -558,16 +528,14 @@ export default function Wagerswap() {
         } else if (message.includes("INSUFFICIENT_GAS")) {
           message = "Gas too low. Contact support — gas is set to 4M.";
         } else if (message.includes("CONTRACT_REVERT_EXECUTED")) {
-          const isOracleRoute = (payToken.symbol === "HBAR" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT")) ||
-                                ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "HBAR");
           const isBlockedRoute = ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "$WAGER") ||
                                  (payToken.symbol === "$WAGER" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT"));
           if (isBlockedRoute) {
-            message = "Stablecoin to WAGER swaps are explicitly blocked by the Hybrid Router.";
-          } else if (isOracleRoute) {
-            message = "Oracle Route reverted. Possible reasons: Pyth Price Update failed, or Treasury lacks sufficient USDC/USDT/HBAR liquidity.";
+            message = "Stablecoin ↔ WAGER swaps are blocked by the Router.";
+          } else if (message.includes("liquidity")) {
+            message = "Swap reverted: Treasury has insufficient liquidity for this amount. Try a smaller amount.";
           } else {
-            message = "Router contract reverted. Slippage too high or pool has insufficient liquidity.";
+            message = "Swap reverted: Slippage too high or insufficient pool liquidity. Try increasing slippage or reducing amount.";
           }
         }
       }
