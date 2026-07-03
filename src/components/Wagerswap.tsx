@@ -24,8 +24,8 @@ import { HCSLiveFeed } from "./HCSLiveFeed";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WAGER_TOKEN_ID_STRING = "0.0.8818191";
-const USDT_TOKEN_ID_STRING = (process.env.NEXT_PUBLIC_USDT_TOKEN_ID || "0.0.12345").trim();
-const USDC_TOKEN_ID_STRING = (process.env.NEXT_PUBLIC_USDC_TOKEN_ID || "0.0.67890").trim();
+const USDT_TOKEN_ID_STRING = "0.0.9388816";
+const USDC_TOKEN_ID_STRING = "0.0.9388818";
 
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 const TREASURY_ID = (process.env.NEXT_PUBLIC_TREASURY_ID || "0.0.8814484").trim();
@@ -212,17 +212,22 @@ export default function Wagerswap() {
   // ── Rate computation ────────────────────────────────────────────────────────────────────
   // Calculate spot rate from AMM reserves if available, otherwise fallback to USD oracle
   const computeRate = (pay: Token, receive: Token): number => {
-    const inInfo = getReserveInfo(pay.symbol);
-    const outInfo = getReserveInfo(receive.symbol);
-    
-    const reserveIn = Number(ethers.formatUnits(inInfo.reserve, inInfo.dec));
-    const reserveOut = Number(ethers.formatUnits(outInfo.reserve, outInfo.dec));
+    const isOracleRoute = (pay.symbol === "HBAR" && (receive.symbol === "USDC" || receive.symbol === "USDT")) ||
+                          ((pay.symbol === "USDC" || pay.symbol === "USDT") && receive.symbol === "HBAR");
 
-    if (reserveIn > 0 && reserveOut > 0) {
-      return reserveOut / reserveIn;
+    if (!isOracleRoute) {
+      const inInfo = getReserveInfo(pay.symbol);
+      const outInfo = getReserveInfo(receive.symbol);
+      
+      const reserveIn = Number(ethers.formatUnits(inInfo.reserve, inInfo.dec));
+      const reserveOut = Number(ethers.formatUnits(outInfo.reserve, outInfo.dec));
+
+      if (reserveIn > 0 && reserveOut > 0) {
+        return reserveOut / reserveIn;
+      }
     }
 
-    // Fallback to USD oracle rate
+    // Fallback to USD oracle rate (always used for Oracle Routes)
     const payUsd     = pricesUsd[pay.symbol]     ?? 0.01;
     const receiveUsd = pricesUsd[receive.symbol] ?? 0.01;
     if (receiveUsd === 0) return 0;
@@ -239,22 +244,28 @@ export default function Wagerswap() {
     const amt = parseFloat(payAmount);
     if (!payAmount || isNaN(amt) || amt <= 0) return "";
     
-    const inInfo = getReserveInfo(payToken.symbol);
-    const outInfo = getReserveInfo(receiveToken.symbol);
-    
-    const reserveIn = Number(ethers.formatUnits(inInfo.reserve, inInfo.dec));
-    const reserveOut = Number(ethers.formatUnits(outInfo.reserve, outInfo.dec));
+    const isOracleRoute = (payToken.symbol === "HBAR" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT")) ||
+                          ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "HBAR");
 
-    if (reserveIn > 0 && reserveOut > 0) {
-      // Pool has liquidity, use constant product AMM formula: dy = (y * dx) / (x + dx)
-      const amountOut = (reserveOut * amt) / (reserveIn + amt);
-      return amountOut.toFixed(outInfo.dec); 
+    if (!isOracleRoute) {
+      const inInfo = getReserveInfo(payToken.symbol);
+      const outInfo = getReserveInfo(receiveToken.symbol);
+      
+      const reserveIn = Number(ethers.formatUnits(inInfo.reserve, inInfo.dec));
+      const reserveOut = Number(ethers.formatUnits(outInfo.reserve, outInfo.dec));
+
+      if (reserveIn > 0 && reserveOut > 0) {
+        // Pool has liquidity, use constant product AMM formula: dy = (y * dx) / (x + dx)
+        const amountOut = (reserveOut * amt) / (reserveIn + amt);
+        return amountOut.toFixed(outInfo.dec); 
+      }
     }
 
     // Fallback to oracle price
     const rate   = computeRate(payToken, receiveToken);
     const result = amt * rate;
-    return result.toFixed(8);
+    const dec = TOKEN_DECIMALS[receiveToken.symbol] ?? receiveToken.decimals;
+    return result.toFixed(dec);
   };
 
   const receiveAmount = getReceiveAmount();
