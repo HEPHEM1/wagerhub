@@ -228,8 +228,11 @@ export default function Wagerswap() {
     }
 
     // Fallback to USD oracle rate (always used for Oracle Routes)
-    const payUsd     = pricesUsd[pay.symbol]     ?? 0.01;
-    const receiveUsd = pricesUsd[receive.symbol] ?? 0.01;
+    // IMPORTANT FIX: Lock HBAR price to the exact rate hardcoded in the No-Oracle contract (0.07172)
+    // so the UI expected amount matches the contract expected amount perfectly.
+    const payUsd     = pay.symbol === "HBAR" ? 0.07172 : (pricesUsd[pay.symbol] ?? 0.01);
+    const receiveUsd = receive.symbol === "HBAR" ? 0.07172 : (pricesUsd[receive.symbol] ?? 0.01);
+    
     if (receiveUsd === 0) return 0;
     return payUsd / receiveUsd;
   };
