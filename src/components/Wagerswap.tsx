@@ -440,9 +440,12 @@ export default function Wagerswap() {
       
       if (isOracleRoute) {
         try {
-          const HBAR_USD_FEED = "0x5d9095dd7c525f385c4bf239f1cbf5cc95b12da6d1efad742dc6032d164d9620";
-          const pythRes = await fetch(`https://hermes-beta.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`);
-          if (!pythRes.ok) throw new Error("Failed to fetch Pyth data");
+          // Pyth Testnet (Beta) ID for HBAR/USD
+          const HBAR_USD_FEED = "0xf2ef5dc6156e6cdccda6c315f3fc6de2bf37e9aecbc9b5efc51de98096c3e7c6";
+          const pythUrl = `https://hermes-beta.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`;
+          console.log(`[Wagerswap] Fetching Pyth Data: ${pythUrl}`);
+          const pythRes = await fetch(pythUrl);
+          if (!pythRes.ok) throw new Error(`Failed to fetch Pyth data: ${pythRes.status}`);
           const pythJson = await pythRes.json();
           priceUpdateData = pythJson.binary.data.map((d: string) => "0x" + d);
           pythFee = ethers.parseEther("1"); // Send 1 HBAR for Pyth fee (excess is refunded by contract)
