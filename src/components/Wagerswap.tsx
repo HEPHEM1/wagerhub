@@ -441,7 +441,7 @@ export default function Wagerswap() {
       if (isOracleRoute) {
         try {
           const HBAR_USD_FEED = "0x5d9095dd7c525f385c4bf239f1cbf5cc95b12da6d1efad742dc6032d164d9620";
-          const pythRes = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`);
+          const pythRes = await fetch(`https://hermes-beta.pyth.network/v2/updates/price/latest?ids[]=${HBAR_USD_FEED}`);
           if (!pythRes.ok) throw new Error("Failed to fetch Pyth data");
           const pythJson = await pythRes.json();
           priceUpdateData = pythJson.binary.data.map((d: string) => "0x" + d);
