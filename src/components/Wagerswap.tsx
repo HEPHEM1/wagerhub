@@ -452,7 +452,16 @@ export default function Wagerswap() {
           if (!pythRes.ok) throw new Error(`Failed to fetch Pyth data: ${pythRes.status}`);
           const pythJson = await pythRes.json();
           priceUpdateData = pythJson.binary.data.map((d: string) => "0x" + d);
-          pythFee = ethers.parseEther("1"); // Send 1 HBAR for Pyth fee (excess is refunded by contract)
+          
+          // Dynamically fetch the required Pyth fee for this specific update payload
+          const pythProvider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
+          const pythContract = new ethers.Contract(
+            "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729",
+            ["function getUpdateFee(bytes[] memory updateData) public view returns (uint256 feeAmount)"],
+            pythProvider
+          );
+          pythFee = await pythContract.getUpdateFee(priceUpdateData);
+          console.log(`[Wagerswap] Pyth Update Fee fetched: ${ethers.formatEther(pythFee)} HBAR`);
         } catch (err) {
           throw new Error("Failed to fetch live oracle price. Try again.");
         }
@@ -548,7 +557,17 @@ export default function Wagerswap() {
         } else if (message.includes("INSUFFICIENT_GAS")) {
           message = "Gas too low. Contact support — gas is set to 4M.";
         } else if (message.includes("CONTRACT_REVERT_EXECUTED")) {
-          message = "Router contract reverted. Slippage too high or pool has insufficient liquidity. Note: Stablecoin to WAGER swaps are explicitly blocked by the Hybrid Router.";
+          const isOracleRoute = (payToken.symbol === "HBAR" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT")) ||
+                                ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "HBAR");
+          const isBlockedRoute = ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "$WAGER") ||
+                                 (payToken.symbol === "$WAGER" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT"));
+          if (isBlockedRoute) {
+            message = "Stablecoin to WAGER swaps are explicitly blocked by the Hybrid Router.";
+          } else if (isOracleRoute) {
+            message = "Oracle Route reverted. Possible reasons: Pyth Price Update failed, or Treasury lacks sufficient USDC/USDT/HBAR liquidity.";
+          } else {
+            message = "Router contract reverted. Slippage too high or pool has insufficient liquidity.";
+          }
         }
       }
       setSwapError(message);
