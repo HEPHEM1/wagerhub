@@ -241,6 +241,10 @@ export default function Wagerswap() {
   }, [payToken, receiveToken, pricesUsd, reserves]);
 
   const getReceiveAmount = (): string => {
+    const isBlockedRoute = ((payToken.symbol === "USDC" || payToken.symbol === "USDT") && receiveToken.symbol === "$WAGER") ||
+                           (payToken.symbol === "$WAGER" && (receiveToken.symbol === "USDC" || receiveToken.symbol === "USDT"));
+    if (isBlockedRoute) return "---";
+
     const amt = parseFloat(payAmount);
     if (!payAmount || isNaN(amt) || amt <= 0) return "";
     
@@ -950,7 +954,7 @@ export default function Wagerswap() {
                 {!isConnected ? (
                   <>Link HashPack to Swap</>
                 ) : isBlockedRoute ? (
-                  <>ROUTE NOT ALLOWED</>
+                  <>Route Blocked by Router</>
                 ) : isInsufficientBalance ? (
                   <>INSUFFICIENT {payToken.symbol} BALANCE</>
                 ) : isProcessing && swapStatus === "associating" ? (
