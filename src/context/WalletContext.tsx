@@ -13,7 +13,7 @@ import { defineChain } from "viem";
 import { WagmiProvider, useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ethers } from "ethers";
-import { getWalletClient } from "@wagmi/core";
+import { getWalletClient, waitForTransactionReceipt } from "@wagmi/core";
 import { EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, HEDERA_TESTNET_CHAIN_ID } from "../evm";
 
 // ─── Constants & Configuration ────────────────────────────────────────────────
@@ -224,8 +224,13 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       }
       
       const tx = await contract[functionName](...args, txOptions);
-      const receipt = await tx.wait();
-      return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
+      
+      // Use Viem/Wagmi native receipt waiter instead of ethers.js .wait()
+      const receipt = await waitForTransactionReceipt(wagmiAdapter.wagmiConfig, { 
+        hash: tx.hash as `0x${string}` 
+      });
+      
+      return { txId: receipt.transactionHash, status: receipt.status === "success" ? "SUCCESS" : "FAIL" };
     } catch (e: any) {
       console.error("[Wagmi] Smart Contract execution failed:", e);
       let msg = e.message;
