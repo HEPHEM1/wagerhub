@@ -168,11 +168,13 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
 
   const refreshBalances = async () => {
     if (!address) return;
-    const [hbar, wager] = await Promise.all([
+    const [hbar, wager, usdc, usdt] = await Promise.all([
       fetchHbarBalance(address),
-      fetchTokenBalance(address, "0.0.8818191", 8)
+      fetchTokenBalance(address, "0.0.8818191", 8),
+      fetchTokenBalance(address, "0.0.9388818", 6), // Mock USDC
+      fetchTokenBalance(address, "0.0.9388816", 6)  // Mock USDT
     ]);
-    setBalances({ hbar, wager, usdt: "0.00", usdc: "0.00" });
+    setBalances({ hbar, wager, usdt, usdc });
   };
 
   useEffect(() => {
