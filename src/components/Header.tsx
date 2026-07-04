@@ -65,19 +65,11 @@ export default function Header() {
 
   return (
     <div className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
-      {/* Left: Logo & Nav */}
-      <div className="flex items-center gap-8 w-1/3">
+      {/* Left: Logo */}
+      <div className="flex flex-col w-1/3">
         <h1 className="text-2xl font-black tracking-[0.2em] text-white uppercase italic">
           Wager<span className="text-wager-lime">Hub</span>
         </h1>
-
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-6">
-          <a href="#swap" className="text-zinc-400 hover:text-wager-cyan font-bold tracking-widest text-xs uppercase transition-colors flex items-center gap-1.5"><Link2 size={14}/> Swap</a>
-          <a href="#arcade" className="text-zinc-400 hover:text-wager-lime font-bold tracking-widest text-xs uppercase transition-colors flex items-center gap-1.5"><Link2 size={14}/> Arcade</a>
-          <a href="#leaderboard" className="text-zinc-400 hover:text-amber-400 font-bold tracking-widest text-xs uppercase transition-colors flex items-center gap-1.5"><Link2 size={14}/> Leaderboard</a>
-          <a href="#about" className="text-zinc-400 hover:text-white font-bold tracking-widest text-xs uppercase transition-colors flex items-center gap-1.5"><Link2 size={14}/> About</a>
-        </div>
       </div>
 
       {/* Center: Season Timer & Credits */}
