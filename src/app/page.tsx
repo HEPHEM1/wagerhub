@@ -66,7 +66,7 @@ export default function Home() {
         {/* 3-Pillar Premium Navigation */}
         <div className="w-full bg-slate-950/80 backdrop-blur-xl border-b border-white/5 flex px-4 pt-4 gap-8 flex-shrink-0 z-40 relative">
           {[
-            { id: "swap", label: "WAGER SWAP (V2)", icon: <ArrowRightLeft size={18} />, color: "text-wager-cyan" },
+            { id: "swap", label: "WAGER SWAP", icon: <ArrowRightLeft size={18} />, color: "text-wager-cyan" },
             { id: "arcade", label: "WAGER ARCADE", icon: <Gamepad2 size={18} />, color: "text-wager-lime" },
             { id: "leaderboard", label: "LEADERBOARD", icon: <TrendingUp size={18} />, color: "text-amber-400" },
             { id: "about", label: "ABOUT", icon: <HelpCircle size={18} />, color: "text-white" },
