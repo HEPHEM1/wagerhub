@@ -1,6 +1,3 @@
-/**
- * Check deployer's token balances and seed router with whatever is available.
- */
 import hre from "hardhat";
 
 const ROUTER      = "0x9E80E3a85224190e6b87b7aaa3B6205de4Ef9AC1";
@@ -20,11 +17,6 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners();
   const provider = hre.ethers.provider;
 
-  // ── Check all balances ──────────────────────────────────────────────
-  console.log("=== Deployer Token Balances ===");
-  const hbarWei = await provider.getBalance(DEPLOYER);
-  console.log(`HBAR  : ${hre.ethers.formatEther(hbarWei)} HBAR`);
-
   const usdcC = new hre.ethers.Contract(USDC_TOKEN, ERC20_ABI, deployer);
   const usdtC = new hre.ethers.Contract(USDT_TOKEN, ERC20_ABI, deployer);
   const wagerC = new hre.ethers.Contract(WAGER_TOKEN, ERC20_ABI, deployer);
@@ -34,52 +26,48 @@ async function main() {
     usdtC.balanceOf(DEPLOYER).catch(() => 0n),
     wagerC.balanceOf(DEPLOYER).catch(() => 0n),
   ]);
-  console.log(`USDC  : ${hre.ethers.formatUnits(usdcBal, 6)} USDC`);
-  console.log(`USDT  : ${hre.ethers.formatUnits(usdtBal, 6)} USDT`);
-  console.log(`WAGER : ${hre.ethers.formatUnits(wagerBal, 8)} WAGER`);
-
-  console.log("\n=== Current Router Balances ===");
-  const rHbar = await provider.getBalance(ROUTER);
-  const [rUsdc, rUsdt, rWager] = await Promise.all([
-    usdcC.balanceOf(ROUTER).catch(() => 0n),
-    usdtC.balanceOf(ROUTER).catch(() => 0n),
-    wagerC.balanceOf(ROUTER).catch(() => 0n),
-  ]);
-  console.log(`HBAR  : ${hre.ethers.formatEther(rHbar)} HBAR`);
-  console.log(`USDC  : ${hre.ethers.formatUnits(rUsdc, 6)} USDC`);
-  console.log(`USDT  : ${hre.ethers.formatUnits(rUsdt, 6)} USDT`);
-  console.log(`WAGER : ${hre.ethers.formatUnits(rWager, 8)} WAGER`);
 
   console.log("\n=== Seeding available tokens ===");
 
-  // Seed USDT if deployer has any
   if (usdtBal > 0n) {
-    const amount = usdtBal; // send all available
-    console.log(`  Sending ${hre.ethers.formatUnits(amount, 6)} USDT...`);
+    console.log(`  Sending USDT...`);
     try {
-      const tx = await usdtC.transfer(ROUTER, amount, TOKEN_TX_OPTS);
+      const tx = await usdtC.transfer(ROUTER, usdtBal, TOKEN_TX_OPTS);
       await tx.wait();
-      console.log(`  ✅ USDT seeded! Tx: ${tx.hash}`);
-    } catch(e) {
-      console.log(`  ❌ USDT failed: ${e.message}`);
-    }
-  } else {
-    console.log("  ⚠️  Deployer has 0 USDT — needs testnet refill");
+      console.log(`  ✅ USDT seeded!`);
+    } catch(e) { console.log(`  ❌ USDT failed: ${e.message}`); }
   }
 
-  // Seed USDC if deployer has any
   if (usdcBal > 0n) {
-    const amount = usdcBal; // send all available
-    console.log(`  Sending ${hre.ethers.formatUnits(amount, 6)} USDC...`);
+    console.log(`  Sending USDC...`);
     try {
-      const tx = await usdcC.transfer(ROUTER, amount, TOKEN_TX_OPTS);
+      const tx = await usdcC.transfer(ROUTER, usdcBal, TOKEN_TX_OPTS);
       await tx.wait();
-      console.log(`  ✅ USDC seeded! Tx: ${tx.hash}`);
-    } catch(e) {
-      console.log(`  ❌ USDC failed: ${e.message}`);
-    }
-  } else {
-    console.log("  ⚠️  Deployer has 0 USDC — needs testnet refill");
+      console.log(`  ✅ USDC seeded!`);
+    } catch(e) { console.log(`  ❌ USDC failed: ${e.message}`); }
+  }
+
+  if (wagerBal > 0n) {
+    console.log(`  Sending WAGER...`);
+    try {
+      const tx = await wagerC.transfer(ROUTER, wagerBal, TOKEN_TX_OPTS);
+      await tx.wait();
+      console.log(`  ✅ WAGER seeded!`);
+    } catch(e) { console.log(`  ❌ WAGER failed: ${e.message}`); }
+  }
+
+  const hbarWei = await provider.getBalance(DEPLOYER);
+  if (hbarWei > hre.ethers.parseEther("50")) {
+    console.log(`  Sending 50 HBAR...`);
+    try {
+      const tx = await deployer.sendTransaction({
+        to: ROUTER,
+        value: hre.ethers.parseEther("50"),
+        ...TOKEN_TX_OPTS
+      });
+      await tx.wait();
+      console.log(`  ✅ HBAR seeded!`);
+    } catch (e) { console.log(`  ❌ HBAR failed: ${e.message}`); }
   }
 
   console.log("\n=== Final Router Balances ===");
@@ -95,6 +83,4 @@ async function main() {
   console.log(`WAGER : ${hre.ethers.formatUnits(rWager2, 8)} WAGER`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => { console.error(err.message); process.exit(1); });
+main().catch(console.error).finally(() => process.exit(0));

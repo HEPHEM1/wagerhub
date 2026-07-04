@@ -49,10 +49,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden bg-slate-950">
-      <div className="w-full flex-shrink-0 z-[200]">
+      <div className="fixed top-0 left-0 right-0 w-full flex-shrink-0 z-[200]">
         <Header />
       </div>
-      <div className="flex flex-col flex-1 w-full relative overflow-hidden">
+      <div className="flex flex-col flex-1 w-full relative overflow-hidden pt-[76px]">
         
         {/* Arcade Mode Overlays */}
         {activeView === "arcade" && (
@@ -64,7 +64,7 @@ export default function Home() {
         )}
 
         {/* 3-Pillar Premium Navigation */}
-        <div className="w-full bg-slate-950/80 backdrop-blur-xl border-b border-white/5 flex px-4 pt-4 gap-8 flex-shrink-0 z-40 relative">
+        <div className="w-full bg-slate-950/80 backdrop-blur-xl border-b border-white/5 flex md:hidden px-4 pt-4 gap-8 flex-shrink-0 z-40 relative">
           {[
             { id: "swap", label: "WAGER SWAP (V2)", icon: <ArrowRightLeft size={18} />, color: "text-wager-cyan" },
             { id: "arcade", label: "WAGER ARCADE", icon: <Gamepad2 size={18} />, color: "text-wager-lime" },
