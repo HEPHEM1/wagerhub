@@ -58,31 +58,31 @@ contract HybridWagerSwapRouter is Ownable, ReentrancyGuard {
 
     // ── Oracle-style swaps using fixed price ──────────────────────────
 
-    // HBAR (msg.value wei) → Stablecoin
-    // amountOut = (hbarWei * hbarUsdPrice) / 1e18   [result is in 6-decimal stable units]
+    // HBAR (msg.value in tinybars) → Stablecoin
+    // amountOut = (hbarTinybars * hbarUsdPrice) / 1e8   [result is in 6-decimal stable units]
     function _swapHbarForStable(
         IERC20 token,
         string memory tokenSymbol,
-        uint256 hbarWei,
+        uint256 hbarTinybars,
         uint256 minAmountOut
     ) internal returns (uint256) {
-        uint256 amountOut = (hbarWei * hbarUsdPrice) / 1e18;
+        uint256 amountOut = (hbarTinybars * hbarUsdPrice) / 1e8;
         require(amountOut >= minAmountOut, "Slippage too high");
         require(token.balanceOf(address(this)) >= amountOut, "Insufficient treasury stablecoin liquidity");
         token.transfer(msg.sender, amountOut);
-        emit SwapHbarForToken(msg.sender, tokenSymbol, hbarWei, amountOut);
+        emit SwapHbarForToken(msg.sender, tokenSymbol, hbarTinybars, amountOut);
         return amountOut;
     }
 
     // Stablecoin → HBAR
-    // hbarOut = (stableAmount * 1e18) / hbarUsdPrice
+    // hbarOut = (stableAmount * 1e8) / hbarUsdPrice
     function _swapStableForHbar(
         IERC20 token,
         string memory tokenSymbol,
         uint256 amountIn,
         uint256 minAmountOut
     ) internal returns (uint256) {
-        uint256 hbarOut = (amountIn * 1e18) / hbarUsdPrice;
+        uint256 hbarOut = (amountIn * 1e8) / hbarUsdPrice;
         require(hbarOut >= minAmountOut, "Slippage too high");
         require(address(this).balance >= hbarOut, "Insufficient treasury HBAR liquidity");
         require(token.transferFrom(msg.sender, address(this), amountIn), "Stablecoin transfer failed");
