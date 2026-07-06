@@ -26,6 +26,7 @@
     "@tsparticles/slim": "^3.9.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/matter-js": "^0.20.2",
+    "@wagmi/core": "^3.5.2",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
@@ -36,6 +37,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tsparticles": "^3.9.1",
+    "valtio": "^2.3.2",
     "viem": "^2.22.0",
     "wagmi": "^2.14.0"
   },
