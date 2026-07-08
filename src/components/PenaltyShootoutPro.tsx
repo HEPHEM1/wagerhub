@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, XCircle, Coins, Loader2, Footprints, Target, Info, ArrowLeft, HelpCircle } from "lucide-react";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS, ERC20_ABI } from "@/evm";
-import { MOCK_WAGER_GAMES_ADDRESS, WAGER_GAMES_ABI } from "@/evm-contracts";
+import { MOCK_WAGER_GAMES_ADDRESS, MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS, WAGER_GAMES_ABI } from "@/evm-contracts";
 import { AccountId, TokenId } from "@hashgraph/sdk";
 import confetti from "canvas-confetti";
 
@@ -98,11 +98,14 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
       // 1. Execute Smart Contract Game Call
       if (walletType !== "EVM") throw new Error("Wallet not connected or wrong type.");
       
+      // CRITICAL HEDERA FIX: HashPack's EVM interceptor has a bug where it fails to properly translate 
+      // a CREATE2 EVM contract address into a Hedera native AccountAllowanceApproveTransaction for HTS tokens.
+      // We MUST pass the Long-Zero EVM address (derived directly from 0.0.xxxxx) to the approve function.
       const approveRes = await executeEVMSmartContract(
         EVM_WAGER_TOKEN_ADDRESS,
         ERC20_ABI,
         "approve",
-        [MOCK_WAGER_GAMES_ADDRESS, amountInTokens.toString()]
+        [MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS, amountInTokens.toString()]
       );
       if (!approveRes || approveRes.status !== "SUCCESS") {
         throw new Error("Token approval failed or rejected by wallet.");
