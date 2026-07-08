@@ -188,6 +188,11 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       localStorage.setItem("wagerHub_points", nw.toString());
       return nw;
     });
+    setWagerCredits((prev) => {
+      const nw = prev + amount;
+      localStorage.setItem("wagerHub_lifetime_credits", nw.toString());
+      return nw;
+    });
   };
 
   // Wagmi/viem provider to ethers.js Signer
