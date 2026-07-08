@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Wallet, ChevronDown, LogOut, RefreshCw, AlertCircle, Link2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
+import { useAppKit } from "@reown/appkit/react";
 
 export default function Header() {
   const {
@@ -18,6 +19,8 @@ export default function Header() {
     disconnect,
     refreshBalances,
   } = useWagerWallet();
+
+  const { open } = useAppKit();
 
   // Shorten EVM address for display: 0x1234...5678
   const shortAccountId = accountId
@@ -115,7 +118,13 @@ export default function Header() {
 
         {/* ── Disconnected state ───────────────────────────────────────────── */}
         {!isConnected ? (
-          <appkit-button />
+          <button
+            onClick={() => open()}
+            className="bg-wager-cyan hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,255,255,0.3)] uppercase tracking-widest flex items-center gap-2"
+          >
+            <Wallet size={14} />
+            Connect Wallet
+          </button>
         ) : (
           /* ── Connected state ──────────────────────────────────────────────── */
           <div className="relative">
