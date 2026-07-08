@@ -108,6 +108,11 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         throw new Error("Token approval failed or rejected by wallet.");
       }
 
+      // CRITICAL HEDERA FIX: Hashio RPC nodes take ~2-3 seconds to sync EVM state after a transaction confirms.
+      // We must delay before the next contract call, otherwise eth_estimateGas for playPenalty will evaluate
+      // against the old state (allowance = 0) and revert with CONTRACT_REVERT_EXECUTED.
+      await new Promise(resolve => setTimeout(resolve, 3500));
+
       const res = await executeEVMSmartContract(
         MOCK_WAGER_GAMES_ADDRESS,
         WAGER_GAMES_ABI,
