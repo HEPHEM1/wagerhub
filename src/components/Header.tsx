@@ -30,6 +30,11 @@ export default function Header() {
   const [timeLeft, setTimeLeft] = useState("00:00:00");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // ── Beta Season timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -65,6 +70,10 @@ export default function Header() {
     await refreshBalances();
     setTimeout(() => setIsRefreshing(false), 600);
   };
+
+  if (!mounted) {
+    return <div className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]"></div>;
+  }
 
   return (
     <div className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
