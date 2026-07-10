@@ -154,7 +154,6 @@ export default function Header() {
           /* ── Connected state ──────────────────────────────────────────────── */
           <div className="relative">
             <motion.button
-              id="wgr-btn-2"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               onClick={() => setMenuOpen((o) => !o)}
@@ -218,7 +217,6 @@ export default function Header() {
 
                   {/* Refresh balances */}
                   <button
-                    id="refresh-balances-btn"
                     onClick={handleRefresh}
                     className="w-full flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-wager-lime px-2 py-2 rounded-xl hover:bg-white/5 transition-colors"
                   >
