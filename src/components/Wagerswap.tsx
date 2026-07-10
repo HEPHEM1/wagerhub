@@ -82,7 +82,45 @@ export default function Wagerswap() {
   // ── Wallet hook ──────────────────────────────────────────────────────────────
   const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
 
-  const [isClaimed, setIsClaimed] = useState(false);
+  // ── Reward Banner State ──────────────────────────────────────────────────────
+  // Phase 1: one-time 500 WagerCredits welcome gift (keyed in localStorage)
+  const [hasClaimedWelcome, setHasClaimedWelcome] = useState(false);
+  // Phase 2: 12-hourly 100 WagerPoint claim — stores last claim UNIX ms timestamp
+  const [lastClaimMs, setLastClaimMs] = useState<number | null>(null);
+  const [claimCountdown, setClaimCountdown] = useState("");
+  const [canClaim12h, setCanClaim12h] = useState(false);
+
+  // Load persisted reward state from localStorage
+  useEffect(() => {
+    const welcomed = localStorage.getItem("wagerHub_welcome_claimed") === "true";
+    setHasClaimedWelcome(welcomed);
+    const stored = localStorage.getItem("wagerHub_12h_last_claim");
+    if (stored) setLastClaimMs(parseInt(stored, 10));
+  }, []);
+
+  // Live countdown ticker for the 12h claim
+  useEffect(() => {
+    if (!hasClaimedWelcome) return; // Phase 1 showing — no need
+    const TWELVE_HOURS = 12 * 60 * 60 * 1000;
+    const tick = () => {
+      const now = Date.now();
+      const elapsed = lastClaimMs ? now - lastClaimMs : TWELVE_HOURS;
+      const remaining = TWELVE_HOURS - elapsed;
+      if (remaining <= 0) {
+        setCanClaim12h(true);
+        setClaimCountdown("Ready!");
+      } else {
+        setCanClaim12h(false);
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        setClaimCountdown(`${h}h ${m}m ${s}s`);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [hasClaimedWelcome, lastClaimMs]);
 
   // ── Swap state ────────────────────────────────────────────────────────────────
   const [isApproved, setIsApproved] = useState(false);
@@ -566,10 +604,41 @@ export default function Wagerswap() {
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8">
-      {/* Early Adopter Bonus Banner */}
-      <AnimatePresence>
-        {!isClaimed && (
-          <motion.div 
+      {/* ── Reward Banner (two-phase) ─────────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+        {!hasClaimedWelcome ? (
+          /* PHASE 1 — One-time Welcome Gift: 500 WagerCredits from the house */
+          <motion.div
+            key="welcome"
+            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+            animate={{ height: "auto", opacity: 1, marginBottom: 24 }}
+            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+            className="bg-gradient-to-r from-wager-lime/20 via-amber-400/20 to-wager-lime/20 p-[1px] rounded-2xl overflow-hidden shadow-lg shadow-wager-lime/10"
+          >
+            <div className="bg-[#121214] px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="bg-wager-lime/20 p-2 rounded-lg text-2xl">🎁</div>
+                <div>
+                  <h4 className="text-wager-lime text-sm font-black tracking-tight uppercase">Welcome Gift — 500 WagerCredits</h4>
+                  <p className="text-amber-400/80 text-[11px] uppercase font-black tracking-tighter">One-time bonus from the house · Claim now!</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.setItem("wagerHub_welcome_claimed", "true");
+                  setHasClaimedWelcome(true);
+                  if (isConnected) addWagerPoints(500);
+                }}
+                className="bg-wager-lime hover:bg-lime-300 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-wager-lime/20 whitespace-nowrap"
+              >
+                CLAIM GIFT
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          /* PHASE 2 — 12-Hourly WagerPoint Claim: 100 pts, timer resets on claim */
+          <motion.div
+            key="claim12h"
             initial={{ height: 0, opacity: 0, marginBottom: 0 }}
             animate={{ height: "auto", opacity: 1, marginBottom: 24 }}
             exit={{ height: 0, opacity: 0, marginBottom: 0 }}
@@ -582,17 +651,30 @@ export default function Wagerswap() {
                 </div>
                 <div>
                   <h4 className="text-white text-sm font-black tracking-tight uppercase">12-Hourly WagerPoint Claim</h4>
-                  <p className="text-cyan-400/80 text-[11px] uppercase font-black tracking-tighter">Claim your 50 WagerPoints reward</p>
+                  <p className="text-cyan-400/80 text-[11px] uppercase font-black tracking-tighter">
+                    {canClaim12h
+                      ? "Claim your 100 WagerPoints reward — Ready!"
+                      : `Next claim in: ${claimCountdown}`}
+                  </p>
                 </div>
               </div>
-              <button 
+              <button
+                disabled={!canClaim12h}
                 onClick={() => {
-                  setIsClaimed(true);
-                  if (isConnected) addWagerPoints(50);
+                  if (!canClaim12h) return;
+                  const now = Date.now();
+                  localStorage.setItem("wagerHub_12h_last_claim", now.toString());
+                  setLastClaimMs(now);
+                  setCanClaim12h(false);
+                  if (isConnected) addWagerPoints(100);
                 }}
-                className="bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/20"
+                className={`text-xs font-black px-6 py-2 rounded-full transition-all whitespace-nowrap ${
+                  canClaim12h
+                    ? "bg-cyan-500 hover:bg-cyan-400 text-black hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/20"
+                    : "bg-white/5 text-zinc-600 cursor-not-allowed border border-white/10"
+                }`}
               >
-                CLAIM
+                {canClaim12h ? "CLAIM" : claimCountdown}
               </button>
             </div>
           </motion.div>
