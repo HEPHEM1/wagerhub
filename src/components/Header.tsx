@@ -85,12 +85,9 @@ export default function Header() {
 
   return (
     <div 
-      className="w-full relative flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl flex-shrink-0"
-      style={{
-        height: isScrolled ? '60px' : '72px',
-        paddingTop: isScrolled ? '0.5rem' : '1rem',
-        paddingBottom: isScrolled ? '0.5rem' : '1rem'
-      }}
+      className={`w-full sticky top-0 flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl z-50 flex-shrink-0 transition-all duration-300 ${
+        isScrolled ? 'py-2 mb-2 min-h-[60px]' : 'py-4 mb-8 min-h-[72px]'
+      }`}
     >
       {/* Left: Logo */}
       <div className="flex flex-col w-1/3">
