@@ -33,13 +33,19 @@ export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      // We check window.scrollY per instructions. If the layout uses internal scrolling, 
-      // this might need to be attached to the specific scrollable container instead.
-      setIsScrolled(window.scrollY > 50);
+    const handleScroll = (e: any) => {
+      // In a 100dvh overflow-hidden layout, window.scrollY is always 0.
+      // We use the capture phase to intercept scroll events from the internal scrollable containers (e.g. ArcadeFloor).
+      const target = e.target as HTMLElement;
+      if (target && typeof target.scrollTop === 'number') {
+        setIsScrolled(target.scrollTop > 50);
+      } else {
+        setIsScrolled(window.scrollY > 50);
+      }
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    // Use true for the capture phase to catch all internal scrolling
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
   }, []);
 
   // ── Beta Season timer ─────────────────────────────────────────────────────────
@@ -79,7 +85,7 @@ export default function Header() {
 
   return (
     <div 
-      className="w-full sticky top-0 flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl z-[150] flex-shrink-0 transition-all duration-300"
+      className="w-full relative flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl flex-shrink-0 transition-all duration-300"
       style={{
         minHeight: isScrolled ? '60px' : '72px',
         paddingTop: isScrolled ? '0.5rem' : '1rem',
