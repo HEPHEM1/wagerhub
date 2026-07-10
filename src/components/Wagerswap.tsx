@@ -85,6 +85,7 @@ export default function Wagerswap() {
   // ── Reward Banner State ──────────────────────────────────────────────────────
   // Phase 1: one-time 500 WagerCredits welcome gift (keyed in localStorage)
   const [hasClaimedWelcome, setHasClaimedWelcome] = useState(false);
+  const [isClaimingWelcome, setIsClaimingWelcome] = useState(false);
   // Phase 2: 12-hourly 100 WagerPoint claim — stores last claim UNIX ms timestamp
   const [lastClaimMs, setLastClaimMs] = useState<number | null>(null);
   const [claimCountdown, setClaimCountdown] = useState("");
@@ -121,6 +122,35 @@ export default function Wagerswap() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [hasClaimedWelcome, lastClaimMs]);
+
+  const claimWelcomeGift = async () => {
+    if (!isConnected || !accountId) return;
+    try {
+      setIsClaimingWelcome(true);
+      const res = await fetch("/api/payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId,
+          receiveTokenId: "0.0.8818191", // WAGER_TOKEN_ID
+          receiveAmountStr: "500"
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      localStorage.setItem("wagerHub_welcome_claimed", "true");
+      setHasClaimedWelcome(true);
+      refreshBalances();
+    } catch (err) {
+      console.error("[Wagerswap] Welcome Gift error:", err);
+      alert("Failed to claim welcome gift. " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsClaimingWelcome(false);
+    }
+  };
 
   // ── Swap state ────────────────────────────────────────────────────────────────
   const [isApproved, setIsApproved] = useState(false);
@@ -619,19 +649,20 @@ export default function Wagerswap() {
               <div className="flex items-center gap-4">
                 <div className="bg-wager-lime/20 p-2 rounded-lg text-2xl">🎁</div>
                 <div>
-                  <h4 className="text-wager-lime text-sm font-black tracking-tight uppercase">Welcome Gift — 500 WagerCredits</h4>
+                  <h4 className="text-wager-lime text-sm font-black tracking-tight uppercase">Welcome Gift — 500 $WAGER</h4>
                   <p className="text-amber-400/80 text-[11px] uppercase font-black tracking-tighter">One-time bonus from the house · Claim now!</p>
                 </div>
               </div>
               <button
-                onClick={() => {
-                  localStorage.setItem("wagerHub_welcome_claimed", "true");
-                  setHasClaimedWelcome(true);
-                  if (isConnected) addWagerPoints(500);
-                }}
-                className="bg-wager-lime hover:bg-lime-300 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-wager-lime/20 whitespace-nowrap"
+                disabled={isClaimingWelcome}
+                onClick={claimWelcomeGift}
+                className={`text-xs font-black px-6 py-2 rounded-full transition-all whitespace-nowrap ${
+                  isClaimingWelcome
+                    ? "bg-wager-lime/50 text-black/50 cursor-not-allowed flex items-center gap-2"
+                    : "bg-wager-lime hover:bg-lime-300 text-black hover:scale-105 active:scale-95 shadow-lg shadow-wager-lime/20"
+                }`}
               >
-                CLAIM GIFT
+                {isClaimingWelcome ? <><Loader2 size={14} className="animate-spin" /> CLAIMING...</> : "CLAIM GIFT"}
               </button>
             </div>
           </motion.div>
