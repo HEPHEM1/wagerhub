@@ -4,11 +4,11 @@
 // Fixed Oracle Router (1e8 decimals for Hedera native msg.value)
 export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x9E80E3a85224190e6b87b7aaa3B6205de4Ef9AC1"; 
 
-export const MOCK_WAGER_GAMES_ADDRESS     = "0x970f1388ec811155ecb072bbbc48c6be17c60522";
-export const MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS = "0x00000000000000000000000000000000008e60d4"; // 0.0.9330900
+export const MOCK_WAGER_GAMES_ADDRESS     = "0x31f659b77ba360729d1d0f2584de9be770ad3b42"; // NEW: 0.0.9507976 (with HTS self-association fix)
+export const MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS = "0x0000000000000000000000000000000000911488"; // 0.0.9507976
 
 export const WAGER_SWAP_POOL_HEDERA_ID = "0.0.9289511";
-export const WAGER_GAMES_HEDERA_ID = "0.0.9330900";
+export const WAGER_GAMES_HEDERA_ID = "0.0.9507976";
 
 export const WAGER_SWAP_POOL_ABI = [
   // No-Oracle edition: priceUpdateData removed, no Pyth fee

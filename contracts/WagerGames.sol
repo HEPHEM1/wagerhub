@@ -4,13 +4,29 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+// HTS Precompile interface - required for Hedera HTS token association
+interface IHederaTokenService {
+    function associateTokens(address account, address[] memory tokens) external returns (int64 responseCode);
+}
+
 contract WagerGames is Ownable {
     IERC20 public wagerToken;
+    
+    // Hedera HTS Precompile address (constant on all Hedera networks)
+    address constant HTS_PRECOMPILE = 0x0000000000000000000000000000000000000167;
     
     event GamePlayed(address indexed player, string game, uint256 betAmount, uint256 payout, bool won);
 
     constructor(address _wagerToken) Ownable(msg.sender) {
         wagerToken = IERC20(_wagerToken);
+
+        // CRITICAL: Self-associate this contract with the $WAGER HTS token.
+        // On Hedera, a contract MUST associate with HTS tokens before it can
+        // receive them, hold them, or be granted spending allowances on them.
+        // Without this, approve() calls revert with INVALID_ALLOWANCE_SPENDER_ID.
+        address[] memory tokens = new address[](1);
+        tokens[0] = _wagerToken;
+        IHederaTokenService(HTS_PRECOMPILE).associateTokens(address(this), tokens);
     }
 
     // --- Helper to execute game logic ---
