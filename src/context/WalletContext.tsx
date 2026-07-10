@@ -153,16 +153,15 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   }, [isConnected, chainId, switchChain]);
 
   const [wagerPoints, setWagerPoints] = useState<number>(0);
-  const [wagerCredits, setWagerCredits] = useState<number>(0);
+  const wagerCredits = Math.floor(wagerPoints * 0.05);
+  
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const storedPoints = localStorage.getItem("wagerHub_points");
-      const storedCredits = localStorage.getItem("wagerHub_lifetime_credits");
       if (storedPoints) setWagerPoints(parseInt(storedPoints, 10));
-      if (storedCredits) setWagerCredits(parseFloat(storedCredits));
     } catch (e) {}
   }, []);
 
@@ -187,10 +186,6 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     const newTotal = wagerPoints + amount;
     localStorage.setItem("wagerHub_points", newTotal.toString());
     setWagerPoints(newTotal);
-
-    const newCredits = wagerCredits + amount;
-    localStorage.setItem("wagerHub_lifetime_credits", newCredits.toString());
-    setWagerCredits(newCredits);
 
     // Fire off the HCS Log Score API call in the background
     if (address) {
