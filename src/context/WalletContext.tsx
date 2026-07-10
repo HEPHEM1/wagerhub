@@ -183,17 +183,14 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   }, [isConnected, address]);
 
   const addWagerPoints = (amount: number) => {
-    let newTotal = 0;
-    setWagerPoints((prev) => {
-      newTotal = prev + amount;
-      localStorage.setItem("wagerHub_points", newTotal.toString());
-      return newTotal;
-    });
-    setWagerCredits((prev) => {
-      const nw = prev + amount;
-      localStorage.setItem("wagerHub_lifetime_credits", nw.toString());
-      return nw;
-    });
+    // Compute new total synchronously from current state so the HCS fetch has the right value
+    const newTotal = wagerPoints + amount;
+    localStorage.setItem("wagerHub_points", newTotal.toString());
+    setWagerPoints(newTotal);
+
+    const newCredits = wagerCredits + amount;
+    localStorage.setItem("wagerHub_lifetime_credits", newCredits.toString());
+    setWagerCredits(newCredits);
 
     // Fire off the HCS Log Score API call in the background
     if (address) {
