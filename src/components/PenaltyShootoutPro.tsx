@@ -105,7 +105,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         EVM_WAGER_TOKEN_ADDRESS,
         ERC20_ABI,
         "approve",
-        [MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS, amountInTokens.toString()]
+        [MOCK_WAGER_GAMES_ADDRESS, amountInTokens.toString()]
       );
       if (!approveRes || approveRes.status !== "SUCCESS") {
         throw new Error("Token approval failed or rejected by wallet.");
