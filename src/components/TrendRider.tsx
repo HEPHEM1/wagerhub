@@ -259,6 +259,16 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleManualCashout = () => {
+    if (gameState !== "active" || isChartFrozen) return;
+    setIsChartFrozen(true);
+    if (pnlMultiplier > 1) {
+      resolveTrade("WIN", currentPrice, pnlMultiplier);
+    } else {
+      resolveTrade("LOSS", currentPrice, pnlMultiplier);
+    }
+  };
+
   const resolveTrade = (status: "WIN" | "LOSS" | "LIQUIDATED", resolvePrice: number, mult: number) => {
     setGameState("resolved");
     setWinStatus(status);
@@ -606,22 +616,37 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
         </div>
 
         <div className="pt-6 flex flex-col gap-4 mt-auto">
-          <button
-            onClick={() => placeTrade("LONG")}
-            disabled={gameState !== "idle" || isProcessing || !wager || parseFloat(wager) <= 0}
-            className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl bg-wager-cyan/20 text-wager-cyan border border-wager-cyan/50 hover:bg-wager-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {isProcessing && prediction === "LONG" ? <Loader2 className="animate-spin" size={20} /> : <TrendingUp size={20} />}
-            LONG (UP)
-          </button>
-          <button
-            onClick={() => placeTrade("SHORT")}
-            disabled={gameState !== "idle" || isProcessing || !wager || parseFloat(wager) <= 0}
-            className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl bg-wager-red/20 text-wager-red border border-wager-red/50 hover:bg-wager-red hover:text-white hover:shadow-[0_0_30px_rgba(255,0,0,0.6)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {isProcessing && prediction === "SHORT" ? <Loader2 className="animate-spin" size={20} /> : <TrendingDown size={20} />}
-            SHORT (DOWN)
-          </button>
+          {gameState === "active" ? (
+            <button
+              onClick={handleManualCashout}
+              className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl flex items-center justify-center gap-2 ${
+                pnlMultiplier > 1 
+                  ? "bg-wager-lime/20 text-wager-lime border border-wager-lime/50 hover:bg-wager-lime hover:text-black hover:shadow-[0_0_30px_rgba(204,255,0,0.6)] animate-pulse" 
+                  : "bg-orange-500/20 text-orange-500 border border-orange-500/50 hover:bg-orange-500 hover:text-black hover:shadow-[0_0_30px_rgba(249,115,22,0.6)]"
+              } active:scale-[0.98]`}
+            >
+              {pnlMultiplier > 1 ? "TAKE PROFIT" : "CUT LOSSES"} ({pnlMultiplier.toFixed(2)}x)
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => placeTrade("LONG")}
+                disabled={isProcessing || !wager || parseFloat(wager) <= 0}
+                className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl bg-wager-cyan/20 text-wager-cyan border border-wager-cyan/50 hover:bg-wager-cyan hover:text-black hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isProcessing && prediction === "LONG" ? <Loader2 className="animate-spin" size={20} /> : <TrendingUp size={20} />}
+                LONG (UP)
+              </button>
+              <button
+                onClick={() => placeTrade("SHORT")}
+                disabled={isProcessing || !wager || parseFloat(wager) <= 0}
+                className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-lg transition-all shadow-xl bg-wager-red/20 text-wager-red border border-wager-red/50 hover:bg-wager-red hover:text-white hover:shadow-[0_0_30px_rgba(255,0,0,0.6)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isProcessing && prediction === "SHORT" ? <Loader2 className="animate-spin" size={20} /> : <TrendingDown size={20} />}
+                SHORT (DOWN)
+              </button>
+            </>
+          )}
           
           {txError && (
             <div className="mt-2 p-3 bg-red-950/60 border border-red-500/40 rounded-xl">
