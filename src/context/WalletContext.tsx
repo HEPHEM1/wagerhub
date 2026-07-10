@@ -183,16 +183,31 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   }, [isConnected, address]);
 
   const addWagerPoints = (amount: number) => {
+    let newTotal = 0;
     setWagerPoints((prev) => {
-      const nw = prev + amount;
-      localStorage.setItem("wagerHub_points", nw.toString());
-      return nw;
+      newTotal = prev + amount;
+      localStorage.setItem("wagerHub_points", newTotal.toString());
+      return newTotal;
     });
     setWagerCredits((prev) => {
       const nw = prev + amount;
       localStorage.setItem("wagerHub_lifetime_credits", nw.toString());
       return nw;
     });
+
+    // Fire off the HCS Log Score API call in the background
+    if (address) {
+      fetch("/api/log-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: address,
+          pointsEarned: amount,
+          totalPoints: newTotal,
+          event: "swap"
+        })
+      }).catch(err => console.error("[WalletContext] Failed to log score to HCS:", err));
+    }
   };
 
   // Wagmi/viem provider to ethers.js Signer
