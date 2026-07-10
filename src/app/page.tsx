@@ -49,7 +49,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden bg-slate-950">
-      <div className="w-full flex-shrink-0 z-[200] mb-8">
+      <div className="w-full flex-shrink-0 z-[200]">
         <Header />
       </div>
       <div className="flex flex-col flex-1 w-full relative overflow-hidden">

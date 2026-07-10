@@ -30,6 +30,17 @@ export default function Header() {
   const [timeLeft, setTimeLeft] = useState("00:00:00");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // We check window.scrollY per instructions. If the layout uses internal scrolling, 
+      // this might need to be attached to the specific scrollable container instead.
+      setIsScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // ── Beta Season timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -67,7 +78,7 @@ export default function Header() {
   };
 
   return (
-    <div className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
+    <div className={`w-full sticky top-0 flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl z-50 flex-shrink-0 transition-all duration-300 ${isScrolled ? 'py-2 mb-2 min-h-[60px]' : 'py-4 mb-8 min-h-[72px]'}`}>
       {/* Left: Logo */}
       <div className="flex flex-col w-1/3">
         <h1 className="text-4xl font-black tracking-[0.2em] text-white uppercase italic">
