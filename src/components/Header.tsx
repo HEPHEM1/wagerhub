@@ -85,12 +85,11 @@ export default function Header() {
 
   return (
     <div 
-      className="w-full relative flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl flex-shrink-0 transition-all duration-300"
+      className="w-full relative flex items-center justify-between px-8 border-b border-white/5 bg-slate-950/90 backdrop-blur-xl flex-shrink-0"
       style={{
-        minHeight: isScrolled ? '60px' : '72px',
+        height: isScrolled ? '60px' : '72px',
         paddingTop: isScrolled ? '0.5rem' : '1rem',
-        paddingBottom: isScrolled ? '0.5rem' : '1rem',
-        marginBottom: isScrolled ? '0.5rem' : '2rem'
+        paddingBottom: isScrolled ? '0.5rem' : '1rem'
       }}
     >
       {/* Left: Logo */}

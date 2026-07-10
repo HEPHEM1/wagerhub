@@ -49,7 +49,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 w-full h-[100dvh] relative overflow-hidden bg-slate-950">
-      <Header />
+      {/* Strict wrapper to force layout space even if child is deleted by adblocker */}
+      <div style={{ flexShrink: 0, minHeight: '72px', width: '100%', marginBottom: '2rem' }}>
+        <Header />
+      </div>
       <div className="flex flex-col flex-1 w-full relative overflow-hidden">
         
         {/* Arcade Mode Overlays */}
