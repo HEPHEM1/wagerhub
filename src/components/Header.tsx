@@ -79,7 +79,7 @@ export default function Header() {
     <div className="w-full sticky top-0 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-50 flex-shrink-0 min-h-[72px]">
       {/* Left: Logo */}
       <div className="flex flex-col w-1/3">
-        <h1 className="text-2xl font-black tracking-[0.2em] text-white uppercase italic">
+        <h1 className="text-4xl font-black tracking-[0.2em] text-white uppercase italic">
           Wager<span className="text-wager-lime">Hub</span>
         </h1>
       </div>
