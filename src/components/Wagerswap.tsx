@@ -127,18 +127,31 @@ export default function Wagerswap() {
     if (!isConnected || !accountId) return;
     try {
       setIsClaimingWelcome(true);
+      const WAGER_TOKEN_ID = process.env.NEXT_PUBLIC_WAGER_TOKEN_ID || "0.0.8818191";
       const res = await fetch("/api/payout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || "wh_payout_s3cr3t_2026_testnet",
+        },
         body: JSON.stringify({
           accountId,
-          receiveTokenId: "0.0.8818191", // WAGER_TOKEN_ID
-          receiveAmountStr: "70"
+          receiveTokenId: WAGER_TOKEN_ID,
+          receiveAmountStr: "70",
+          isWelcomeGift: true,
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(await res.text());
+        if (res.status === 409) {
+          // Already claimed server-side — just mark locally and move on
+          localStorage.setItem("wagerHub_welcome_claimed", "true");
+          setHasClaimedWelcome(true);
+          return;
+        }
+        throw new Error(data?.error || `HTTP ${res.status}`);
       }
 
       localStorage.setItem("wagerHub_welcome_claimed", "true");
@@ -146,7 +159,8 @@ export default function Wagerswap() {
       refreshBalances();
     } catch (err) {
       console.error("[Wagerswap] Welcome Gift error:", err);
-      alert("Failed to claim welcome gift. " + (err instanceof Error ? err.message : String(err)));
+      // Show inline error instead of alert()
+      setSwapError("Failed to claim welcome gift: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsClaimingWelcome(false);
     }
@@ -690,22 +704,24 @@ export default function Wagerswap() {
                 </div>
               </div>
               <button
-                disabled={!canClaim12h}
+                disabled={!canClaim12h || !isConnected}
                 onClick={() => {
-                  if (!canClaim12h) return;
+                  if (!canClaim12h || !isConnected) return;
                   const now = Date.now();
                   localStorage.setItem("wagerHub_12h_last_claim", now.toString());
                   setLastClaimMs(now);
                   setCanClaim12h(false);
-                  if (isConnected) addWagerPoints(100);
+                  addWagerPoints(100);
                 }}
                 className={`text-xs font-black px-6 py-2 rounded-full transition-all whitespace-nowrap ${
-                  canClaim12h
+                  canClaim12h && isConnected
                     ? "bg-cyan-500 hover:bg-cyan-400 text-black hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/20"
+                    : !isConnected
+                    ? "bg-white/5 text-zinc-500 cursor-not-allowed border border-white/10"
                     : "bg-white/5 text-zinc-600 cursor-not-allowed border border-white/10"
                 }`}
               >
-                {canClaim12h ? "CLAIM" : claimCountdown}
+                {!isConnected ? "CONNECT WALLET" : canClaim12h ? "CLAIM" : claimCountdown}
               </button>
             </div>
           </motion.div>
@@ -729,7 +745,11 @@ export default function Wagerswap() {
             >
               <Settings size={20} />
             </button>
-            <button className="text-zinc-400 hover:text-white transition-colors p-3 bg-wager-black border border-white/5 hover:border-white/20 rounded-xl">
+            <button
+              title="Swap WagerPoints: earn points for every swap. 5% of all-time points = your WagerCredits balance."
+              onClick={() => window.location.hash = '#about'}
+              className="text-zinc-400 hover:text-wager-cyan transition-colors p-3 bg-wager-black border border-white/5 hover:border-white/20 rounded-xl"
+            >
               <Info size={20} />
             </button>
           </div>
@@ -1019,10 +1039,15 @@ export default function Wagerswap() {
               <CheckCircle2 size={18} className="text-wager-lime flex-shrink-0 mt-0.5" />
               <div className="w-full">
                 <p className="text-sm font-bold text-wager-lime">Swap Confirmed!</p>
-                {lastEarnedCredits !== null && (
-                  <p className="text-xs font-bold text-[#FFD700] uppercase tracking-widest mt-1 mb-1 animate-pulse">
-                    🎉 You earned {lastEarnedCredits} WagerCredits!
-                  </p>
+                {lastEarnedCredits !== null && lastEarnedCredits > 0 && (
+                  <div className="mt-1 mb-1">
+                    <p className="text-xs font-bold text-[#FFD700] uppercase tracking-widest animate-pulse">
+                      🎉 +{lastEarnedCredits.toLocaleString()} WagerPoints earned!
+                    </p>
+                    <p className="text-[10px] text-amber-400/70 font-bold tracking-wider mt-0.5">
+                      +{Math.floor(lastEarnedCredits * 0.05)} WagerCredits automatically added (5%)
+                    </p>
+                  </div>
                 )}
                 <p className="text-xs font-mono text-zinc-400 break-all mt-0.5">Tx: {lastTxId}</p>
               </div>

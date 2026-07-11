@@ -60,7 +60,7 @@ export default function Leaderboard() {
         </div>
       ) : leaderboardData.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <span className="text-zinc-500 font-bold uppercase tracking-widest text-sm">No transactions yet this month.</span>
+          <span className="text-zinc-500 font-bold uppercase tracking-widest text-sm">No activity yet this season. Start swapping to appear here!</span>
         </div>
       ) : (
         <div className="flex justify-center items-end gap-4 md:gap-8 min-h-[400px] pt-10">
@@ -118,8 +118,8 @@ export default function Leaderboard() {
           <div className="col-span-3 text-right">WagerPoints</div>
         </div>
         <div className="divide-y divide-white/5">
-          {/* Current User Row */}
-          {isConnected && (
+          {/* Current User Row — only show when user has a monthly score */}
+          {isConnected && currentUserEntry && (
             <div className="grid grid-cols-12 gap-4 p-4 items-center bg-wager-cyan/10 border-b border-wager-cyan/30">
               <div className="col-span-1 text-center font-black text-wager-cyan">
                 {currentUserRank ? `#${currentUserRank}` : "-"}

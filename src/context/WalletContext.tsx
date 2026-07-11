@@ -16,8 +16,8 @@ import { ethers } from "ethers";
 import { getWalletClient, waitForTransactionReceipt } from "@wagmi/core";
 import { EVM_WAGER_TOKEN_ADDRESS, ERC20_ABI, HEDERA_TESTNET_CHAIN_ID } from "../evm";
 
-// ─── Constants & Configuration ────────────────────────────────────────────────
-const WC_PROJECT_ID = "0d8e72911e581a9079dd13f03f7ffb53";
+// ─── Constants & Configuration ──────────────────────────────────────────────────────────────────────────
+const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || "0d8e72911e581a9079dd13f03f7ffb53").trim();
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com/api/v1";
 
 const hederaTestnet = defineChain({
@@ -286,8 +286,11 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
         // Must be EXACTLY 21000 for native transfers on Hedera, otherwise it fails precheck (-32000)
         gasLimit: 21000,
       });
-      const receipt = await tx.wait();
-      return { txId: receipt?.hash || tx.hash, status: receipt?.status === 1 ? "SUCCESS" : "FAIL" };
+      // Use Wagmi's waitForTransactionReceipt (consistent with executeEVMSmartContract)
+      const receipt = await waitForTransactionReceipt(wagmiAdapter.wagmiConfig, {
+        hash: tx.hash as `0x${string}`
+      });
+      return { txId: receipt.transactionHash, status: receipt.status === "success" ? "SUCCESS" : "FAIL" };
     } catch (e: any) {
       throw new Error(e?.message || "Transfer failed");
     }

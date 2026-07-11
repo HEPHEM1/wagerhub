@@ -1,12 +1,61 @@
 import { NextResponse } from "next/server";
 import { Client, TopicMessageSubmitTransaction, PrivateKey } from "@hashgraph/sdk";
 
+// ── In-memory rate limiter: max 20 submissions per wallet per hour ────────────
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const RATE_LIMIT_MAX    = 20;
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in ms
+
+// ── Server-side point caps per event type ────────────────────────────────────
+const MAX_POINTS: Record<string, number> = {
+  swap:           5000,   // max 5000 pts per swap (daily bonus cap)
+  game:           800,    // max 800 pts per game round
+  daily_claim:    100,    // max 100 pts per 12h claim
+  welcome_gift:   0,      // welcome gift doesn't earn points, block it
+  default:        1000,   // fallback cap
+};
+
 export async function POST(req: Request) {
   try {
     const { accountId, pointsEarned, totalPoints, event } = await req.json();
 
     if (!accountId || pointsEarned === undefined) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // ── C-6: Validate pointsEarned is a positive number ───────────────────────
+    const rawPoints = Number(pointsEarned);
+    if (!isFinite(rawPoints) || rawPoints < 0) {
+      return NextResponse.json({ error: "Invalid pointsEarned value" }, { status: 400 });
+    }
+
+    const eventKey = (event || "default").toLowerCase();
+    const cap = MAX_POINTS[eventKey] ?? MAX_POINTS.default;
+    const sanitizedPoints = Math.min(rawPoints, cap);
+
+    if (sanitizedPoints === 0 && rawPoints > 0) {
+      console.warn(`[HCS] ⚠️ Points for event "${eventKey}" are zero — blocked.`);
+      return NextResponse.json({ error: "Event not eligible for points" }, { status: 400 });
+    }
+
+    // ── M-7: Rate limiting per wallet ─────────────────────────────────────────
+    const walletKey = accountId.toLowerCase();
+    const now = Date.now();
+    const limiter = rateLimitMap.get(walletKey);
+
+    if (limiter) {
+      if (now - limiter.windowStart < RATE_LIMIT_WINDOW) {
+        if (limiter.count >= RATE_LIMIT_MAX) {
+          console.warn(`[HCS] ⚠️ Rate limit exceeded for ${accountId}`);
+          return NextResponse.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 });
+        }
+        limiter.count++;
+      } else {
+        // Reset window
+        rateLimitMap.set(walletKey, { count: 1, windowStart: now });
+      }
+    } else {
+      rateLimitMap.set(walletKey, { count: 1, windowStart: now });
     }
 
     const operatorId = (process.env.HEDERA_OPERATOR_ID || "").trim();
@@ -29,8 +78,8 @@ export async function POST(req: Request) {
 
     const messagePayload = JSON.stringify({
       accountId,
-      event: event || "swap",
-      pointsEarned,
+      event: eventKey,
+      pointsEarned: sanitizedPoints,
       totalPoints,
       timestamp: new Date().toISOString(),
     });
@@ -50,6 +99,7 @@ export async function POST(req: Request) {
       success: true,
       status: receipt.status.toString(),
       topicSequenceNumber: receipt.topicSequenceNumber?.toString(),
+      pointsRecorded: sanitizedPoints,
     });
 
   } catch (error) {

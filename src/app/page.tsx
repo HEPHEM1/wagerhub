@@ -19,20 +19,18 @@ export default function Home() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      const gameIds = ["#wager-swap", "#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
-      
-      if (gameIds.includes(hash)) {
-        setActiveView("about");
+      const arcadeGameIds = ["#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
+
+      if (hash === "#wager-swap" || hash === "#swap" || hash === "") {
+        if (hash === "#wager-swap" || hash === "#swap") setActiveView("swap");
+      } else if (arcadeGameIds.includes(hash)) {
+        setActiveView("arcade");
       } else if (hash === "#arcade") {
         setActiveView("arcade");
       } else if (hash === "#leaderboard") {
         setActiveView("leaderboard");
       } else if (hash === "#about") {
         setActiveView("about");
-      } else if (hash === "#swap" || hash === "") {
-        // Default or explicitly swap
-        // Only set to swap if we already entered, or if the hash is explicitly swap
-        if (hash === "#swap") setActiveView("swap");
       }
     };
 

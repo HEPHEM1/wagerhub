@@ -38,19 +38,43 @@ const bentoCardVariants: Variants = {
 const faqs = [
   {
     q: "What wallet do I need to play on WagerHub?",
-    a: "You need a HashPack wallet connected to the Hedera network. It's fast, secure, and allows for seamless transactions directly from your browser."
+    a: "You need a HashPack or MetaMask wallet connected to the Hedera network. WagerHub uses the Reown AppKit (WalletConnect v3) so any EVM-compatible wallet on Hedera Testnet works seamlessly."
   },
   {
     q: "Are the games provably fair?",
-    a: "Absolutely. WagerHub utilizes Hedera's on-chain PRNG (Pseudo-Random Number Generator) via Smart Contracts, ensuring every outcome is transparent, verifiable, and immune to tampering."
+    a: "WagerHub is currently in Testnet Phase. During this phase, game outcomes are determined by smart-contract interactions on the Hedera EVM testnet. We are actively working on integrating Hedera’s native on-chain PRNG (Pseudo-Random Number Generator) precompile so all future outcomes are fully verifiable on-chain. Think of this phase as the 'open beta' before the provably-fair mainnet launch."
   },
   {
     q: "What is the $WAGER token?",
-    a: "$WAGER is the native utility token of our platform. You can swap your HBAR for $WAGER seamlessly in our Wager Swap terminal to access premium games and climb the leaderboard."
+    a: "$WAGER (Token ID: 0.0.8818191) is the native utility token of WagerHub on Hedera Testnet. You can swap HBAR for $WAGER in our Universal Router, use it to place game bets, and earn more through our WagerPoints reward system. Note: this is a testnet token with no real monetary value."
+  },
+  {
+    q: "What are WagerPoints and WagerCredits?",
+    a: "WagerPoints are earned through swaps and game activity. They accumulate each calendar month and determine your rank on the Leaderboard, which resets at the start of every new month so everyone gets a fresh shot at the top. WagerCredits are your permanent platform score — they equal exactly 5% of your all-time WagerPoints total and never reset. They’re displayed in the header as your long-term badge of dedication."
+  },
+  {
+    q: "What is the 70 $WAGER Welcome Gift?",
+    a: "Every new wallet that connects for the first time receives a one-time gift of 70 $WAGER tokens from the House Treasury. This helps you get started and place your first bets without needing to fund up immediately. The gift can only be claimed once per wallet address and is verified server-side."
+  },
+  {
+    q: "How does the 12-Hour WagerPoint Claim work?",
+    a: "Once you’ve connected your wallet and claimed the Welcome Gift, a 12-hourly reward timer activates. Every 12 hours, you can click CLAIM to receive 100 WagerPoints. The timer resets from the exact moment you claim, not from midnight — so you can optimize around your schedule. You must have a wallet connected to claim."
+  },
+  {
+    q: "How does the Leaderboard reset?",
+    a: "The Leaderboard resets at 00:00:00 UTC on the first day of every calendar month. All WagerPoints earned that month determine your rank. When the month ends, points reset to zero for the next season. However, your WagerCredits (the 5% permanent score) are never affected by monthly resets."
   },
   {
     q: "Are there any hidden fees?",
-    a: "No. WagerHub prides itself on transparency. The only fees you pay are the microscopic network fees inherently required by the Hedera hashgraph to process your transactions."
+    a: "No. WagerHub prides itself on transparency. The only fees you pay are the microscopic network fees inherently required by the Hedera hashgraph to process your transactions — typically a fraction of a cent."
+  },
+  {
+    q: "Is this the mainnet or testnet version?",
+    a: "This is the Hedera Testnet version of WagerHub. All tokens, balances, and transactions are on testnet and carry no real monetary value. The mainnet launch will be announced separately. Never send real HBAR to testnet addresses."
+  },
+  {
+    q: "How do I swap tokens on WagerHub?",
+    a: "Navigate to the Wager Swap tab, select the token you want to pay with (e.g., HBAR) and the token you want to receive (e.g., $WAGER). Enter an amount, approve if required, and hit the Swap button. The swap is routed through our on-chain Universal Router contract. Stablecoin ↔ $WAGER routes are currently disabled on testnet."
   }
 ];
 

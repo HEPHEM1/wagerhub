@@ -12,6 +12,7 @@ export default function Header() {
     isConnecting,
     isInitialized,
     accountId,
+    network,
     wagerCredits,
     balances,
     error,
@@ -48,25 +49,27 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handleScroll, true);
   }, []);
 
-  // ── Beta Season timer ─────────────────────────────────────────────────────────
+  // ── Beta Season timer — UTC (aligned with leaderboard API) ─────────────────────────────────
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date();
-      // Calculate end of the current calendar month
-      const target = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      
+      // Compute end of current UTC month
+      const utcYear  = now.getUTCFullYear();
+      const utcMonth = now.getUTCMonth();
+      const target   = new Date(Date.UTC(utcYear, utcMonth + 1, 1, 0, 0, 0, 0)); // first ms of next month
+
       const diff = target.getTime() - now.getTime();
-      
-      if (diff <= 0) { 
-        setTimeLeft("SEASON ENDED"); 
-        return; 
+
+      if (diff <= 0) {
+        setTimeLeft("SEASON ENDED");
+        return;
       }
-      
+
       const d = Math.floor(diff / (1000 * 60 * 60 * 24));
       const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
       const m = Math.floor((diff / 1000 / 60) % 60);
       const s = Math.floor((diff / 1000) % 60);
-      
+
       setTimeLeft(`${d}D ${h}H ${m}M ${s}S`);
     };
 
@@ -157,7 +160,7 @@ export default function Header() {
             >
               {/* Account ID & Balances */}
               <div className="flex flex-col items-end mr-2 text-right">
-                <span className="text-white text-[10px] bg-white/10 px-2 py-0.5 rounded-full mb-1">{accountId}</span>
+                <span className="text-white text-[10px] bg-white/10 px-2 py-0.5 rounded-full mb-1">{shortAccountId}</span>
                 <div className="flex items-center gap-x-3 text-right">
                   <span className="text-wager-lime text-[10px]">{balances.hbar} HBAR</span>
                   <span className="text-wager-cyan text-[10px]">{balances.wager} WAGER</span>
@@ -192,7 +195,7 @@ export default function Header() {
                       {accountId}
                     </p>
                     <p className="text-[10px] font-mono text-zinc-500">
-                      {shortAccountId} · Hedera Testnet
+                      {shortAccountId} · Hedera {network === "mainnet" ? "Mainnet" : network === "testnet" ? "Testnet" : "Unknown Network"}
                     </p>
                   </div>
 
