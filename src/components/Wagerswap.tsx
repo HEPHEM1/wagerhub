@@ -76,7 +76,7 @@ export default function Wagerswap() {
   const [reserves, setReserves] = useState<{ hbar: bigint; wager: bigint; usdc: bigint; usdt: bigint }>({ hbar: 0n, wager: 0n, usdc: 0n, usdt: 0n });
   
   // ── Wallet hook ──────────────────────────────────────────────────────────────
-  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
+  const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances, connect } = useWagerWallet();
 
   // ── Reward Banner State ──────────────────────────────────────────────────────
   // Phase 1: one-time 70 WagerCredits welcome gift (keyed in localStorage)
