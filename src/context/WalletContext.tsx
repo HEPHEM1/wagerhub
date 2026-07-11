@@ -142,16 +142,13 @@ async function fetchTokenBalance(accountId: string, tokenId: string, expectedDec
 function WalletProviderInner({ children }: { children: ReactNode }) {
   const { address, isConnected, isConnecting, chainId } = useAccount();
   const { disconnectAsync } = useDisconnect();
-  const { switchChain, switchChainAsync } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
   const { open } = useAppKit();
 
-  // Force-switch network if the wallet is reporting the wrong chain (e.g. HashPack returning 295 instead of 296)
-  useEffect(() => {
-    if (isConnected && chainId && chainId !== 296 && switchChain) {
-      console.log(`[WalletContext] Detected chain mismatch (wallet is on ${chainId}). Forcing switch to 296...`);
-      switchChain({ chainId: 296 });
-    }
-  }, [isConnected, chainId, switchChain]);
+  // NOTE: We intentionally do NOT auto-call switchChain on mount.
+  // HashPack sometimes briefly reports chainId 295 (Mainnet) even when the user
+  // is on Testnet. Firing switchChain immediately causes a ConnectorChainMismatchError
+  // that shows a false "Network Mismatch" banner on every first interaction.
 
   const [wagerPoints, setWagerPoints] = useState<number>(0);
   const wagerCredits = Math.floor(wagerPoints * 0.05);
@@ -220,56 +217,53 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   };
 
   const executeEVMSmartContract = async (contractAddress: string, abi: any[], functionName: string, args: any[], value: string = "0") => {
-    try {
-      if (chainId !== 296 && switchChainAsync) {
-        console.warn(`[Wagmi] Preemptive check: Wallet is on chain ${chainId}. Forcing switch to Testnet (296) before execution...`);
-        await switchChainAsync({ chainId: 296 });
-      }
-
+    // Inner attempt — no preemptive chain switch (HashPack briefly mis-reports chainId on first connect)
+    const attempt = async () => {
       const signer = await getEthersSigner();
-      
-      // Instantiate contract with provider, then explicitly connect the signer
-      // This solves the UNSUPPORTED_OPERATION (contract runner does not support sending transactions) error
       const contract = new ethers.Contract(contractAddress, abi, signer);
-      
       const txOptions: any = {};
-      
       if (value && value !== "0") {
         txOptions.value = ethers.parseEther(value);
       }
-      
       const tx = await contract[functionName](...args, txOptions);
-      
-      // Use Viem/Wagmi native receipt waiter instead of ethers.js .wait()
-      const receipt = await waitForTransactionReceipt(wagmiAdapter.wagmiConfig, { 
-        hash: tx.hash as `0x${string}` 
+      const receipt = await waitForTransactionReceipt(wagmiAdapter.wagmiConfig, {
+        hash: tx.hash as `0x${string}`
       });
-      
       return { txId: receipt.transactionHash, status: receipt.status === "success" ? "SUCCESS" : "FAIL" };
+    };
+
+    try {
+      return await attempt();
     } catch (e: any) {
-      console.error("[Wagmi] Smart Contract execution failed:", e);
-      let msg = e.message;
-      
-      // Handle strict Wagmi chain mismatch errors cleanly by forcing a switch
-      if (msg && msg.includes("ConnectorChainMismatchError") || (msg && msg.includes("chain") && msg.includes("295"))) {
-        console.warn("[Wagmi] Caught ConnectorChainMismatchError. Attempting to force HashPack to switch to Testnet (296)...");
-        if (switchChainAsync) {
-          try {
-            await switchChainAsync({ chainId: 296 });
-            throw new Error("We requested HashPack to switch to Testnet. Please approve the network switch in your wallet and try swapping again.");
-          } catch (switchError) {
-            console.error("[Wagmi] Failed to force switch chain:", switchError);
-          }
+      const msg: string = e?.message || "";
+
+      // HashPack sometimes reports chain 295 on first connect even though the user is on Testnet.
+      // When Wagmi detects the mismatch it throws ConnectorChainMismatchError.
+      // Solution: silently ask HashPack to align to 296 and immediately retry — no banner shown.
+      const isChainMismatch =
+        msg.includes("ConnectorChainMismatchError") ||
+        (msg.includes("chain") && msg.includes("295"));
+
+      if (isChainMismatch) {
+        console.warn("[Wagmi] ConnectorChainMismatchError detected — silently requesting chain 296 and retrying...");
+        try {
+          if (switchChainAsync) await switchChainAsync({ chainId: 296 });
+        } catch {
+          // ignore — HashPack may reject the programmatic switch but still execute on testnet
         }
-        throw new Error("⚠️ Network Mismatch: Your HashPack wallet is stuck on Hedera Mainnet. We attempted to automatically switch your network, but it was rejected or unsupported. Please manually open the HashPack extension, click the network dropdown at the top right, and switch to Testnet before swapping!");
+        // Small delay to let HashPack settle its reported chainId
+        await new Promise(resolve => setTimeout(resolve, 400));
+        try {
+          return await attempt();
+        } catch (retryErr: any) {
+          // Retry also failed — now surface a clean error
+          throw new Error(retryErr?.info?.error?.message || retryErr?.reason || retryErr?.message || "Transaction failed.");
+        }
       }
 
-      if (e.info?.error?.message) {
-        msg = e.info.error.message;
-      } else if (e.reason) {
-        msg = e.reason;
-      }
-      throw new Error(msg || "Smart contract call failed.");
+      // Any other error — surface cleanly
+      const friendly = e?.info?.error?.message || e?.reason || msg;
+      throw new Error(friendly || "Smart contract call failed.");
     }
   };
 
