@@ -24,6 +24,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
   const [safeClicks, setSafeClicks] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCashingOut, setIsCashingOut] = useState(false);
+  const [txError, setTxError] = useState<string | null>(null);
 
   const { isConnected, accountId, balances, executeEVMTransfer, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
@@ -42,11 +43,12 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
   const startGame = async () => {
     if (!wager || parseFloat(wager) <= 0) return;
     if (!isConnected || !accountId) {
-      alert("Please connect your wallet to play!");
+      connect();
       return;
     }
 
     setIsProcessing(true);
+    setTxError(null);
     let hasResolved = false;
 
     // ── 6-Second Safety Net ──
@@ -90,7 +92,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
 
       if (!res || res.status !== "SUCCESS") {
         console.warn("[MysteryField] Transaction execution returned null.");
-        alert("Transaction was rejected or failed to parse. Please check your wallet.");
+        setTxError("Transaction was rejected or failed to parse. Please check your wallet.");
         return;
       }
 
@@ -123,14 +125,14 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
       } else {
         console.error("[MysteryField] Transaction failed with status:", status);
-        alert("Transaction failed on the network. Please try again.");
+        setTxError("Transaction failed on the network. Please try again.");
       }
     } catch (err: any) {
       if (hasResolved) return;
       hasResolved = true;
       clearTimeout(fallbackTimeout);
       console.error("[MysteryField] Start game error:", err);
-      alert(err.message || "Transaction failed. Check console for details.");
+      setTxError(err.message || "Transaction failed. Check console for details.");
     } finally {
       setIsProcessing(false);
     }
@@ -179,7 +181,10 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/api/payout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+        },
         body: JSON.stringify({ 
           accountId, 
           winAmount: winAmountToPayout,
@@ -214,7 +219,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
       [2000, 4000, 6000].forEach(delay => setTimeout(() => refreshBalances(), delay));
     } catch (err) {
       console.error("[MysteryField] Cash out error:", err);
-      alert("Failed to process payout. Please contact support.");
+      setTxError("Failed to process payout. Please contact support.");
     } finally {
       setIsCashingOut(false);
     }
@@ -379,6 +384,12 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
             <button disabled className="w-full bg-zinc-900 border border-white/5 text-zinc-600 font-black text-xl uppercase tracking-widest py-5 rounded-2xl cursor-not-allowed">
               Playing...
             </button>
+          )}
+          
+          {txError && (
+            <div className="mt-2 p-3 bg-red-950/60 border border-red-500/40 rounded-xl">
+              <p className="text-[10px] text-red-400 font-mono text-center leading-snug">{txError}</p>
+            </div>
           )}
           
           <button onClick={onClose} className="w-full py-3 text-sm font-bold text-zinc-500 hover:text-white transition-colors relative z-50">

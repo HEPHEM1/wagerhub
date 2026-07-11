@@ -53,10 +53,6 @@ const TOKENS = [
 // ─── Routing: all pairs in a 4-token universe are direct ───────────────────────────
 type Token = typeof TOKENS[number];
 
-// Build direct-pool set programmatically for every A↔B combo
-const DIRECT_POOLS = new Set(
-  TOKENS.flatMap((a) => TOKENS.filter((b) => b.id !== a.id).map((b) => `${a.symbol}-${b.symbol}`))
-);
 
 const getRoute = (pay: Token, receive: Token): Token[] => {
   if (pay.symbol === receive.symbol) return [pay];
@@ -169,7 +165,7 @@ export default function Wagerswap() {
   // ── Swap state ────────────────────────────────────────────────────────────────
   const [isApproved, setIsApproved] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [swapStatus, setSwapStatus] = useState<"idle" | "associating" | "swapping" | "payout" | "success" | "error">("idle");
+  const [swapStatus, setSwapStatus] = useState<"idle" | "associating" | "swapping" | "success" | "error">("idle");
   const [swapError, setSwapError] = useState<string | null>(null);
   const [lastTxId, setLastTxId] = useState<string | null>(null);
   const [lastEarnedCredits, setLastEarnedCredits] = useState<number | null>(null);
@@ -309,11 +305,10 @@ export default function Wagerswap() {
       }
     }
 
-    // Fallback to USD oracle rate (always used for Oracle Routes)
-    // IMPORTANT FIX: Lock HBAR price to the exact rate hardcoded in the No-Oracle contract (0.07172)
-    // AND lock Stablecoins to exactly 1.00 so the UI expected amount matches the contract expected amount perfectly.
+    // IMPORTANT FIX: Lock Stablecoins to exactly 1.00 so the UI expected amount matches.
+    // Use live oracle price for HBAR.
     const getFixedUsd = (sym: string) => {
-      if (sym === "HBAR") return 0.07172;
+      if (sym === "HBAR") return pricesUsd["HBAR"] || 0.07172;
       if (sym === "USDC" || sym === "USDT") return 1.00;
       return pricesUsd[sym] ?? 0.01;
     };
@@ -704,9 +699,13 @@ export default function Wagerswap() {
                 </div>
               </div>
               <button
-                disabled={!canClaim12h || !isConnected}
+                disabled={isConnected && !canClaim12h}
                 onClick={() => {
-                  if (!canClaim12h || !isConnected) return;
+                  if (!isConnected) {
+                    connect();
+                    return;
+                  }
+                  if (!canClaim12h) return;
                   const now = Date.now();
                   localStorage.setItem("wagerHub_12h_last_claim", now.toString());
                   setLastClaimMs(now);
@@ -717,7 +716,7 @@ export default function Wagerswap() {
                   canClaim12h && isConnected
                     ? "bg-cyan-500 hover:bg-cyan-400 text-black hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/20"
                     : !isConnected
-                    ? "bg-white/5 text-zinc-500 cursor-not-allowed border border-white/10"
+                    ? "bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/30 transition-colors"
                     : "bg-white/5 text-zinc-600 cursor-not-allowed border border-white/10"
                 }`}
               >
@@ -1066,13 +1065,13 @@ export default function Wagerswap() {
 
             return (
               <motion.button
-                whileHover={!isProcessing && !isInsufficientBalance && !isBlockedRoute ? { scale: 1.01 } : {}}
-                whileTap={!isProcessing && !isInsufficientBalance && !isBlockedRoute ? { scale: 0.99 } : {}}
-                onClick={executeSwap}
-                disabled={!payAmount || isProcessing || !isConnected || isInsufficientBalance || isBlockedRoute}
+                whileHover={!isProcessing && (!isConnected || (!isInsufficientBalance && !isBlockedRoute)) ? { scale: 1.01 } : {}}
+                whileTap={!isProcessing && (!isConnected || (!isInsufficientBalance && !isBlockedRoute)) ? { scale: 0.99 } : {}}
+                onClick={!isConnected ? connect : executeSwap}
+                disabled={isProcessing || (isConnected && (!payAmount || isInsufficientBalance || isBlockedRoute))}
                 className={`w-full font-black uppercase tracking-widest py-6 rounded-3xl transition-all text-2xl flex items-center justify-center gap-3
                   ${!isConnected
-                    ? 'bg-wager-charcoal text-zinc-500 cursor-not-allowed border-2 border-white/5'
+                    ? 'bg-wager-cyan/20 text-wager-cyan border-2 border-wager-cyan/30 hover:bg-wager-cyan/30'
                     : isBlockedRoute
                     ? 'bg-wager-charcoal text-wager-red/50 cursor-not-allowed border-2 border-wager-red/20'
                     : !payAmount
@@ -1096,8 +1095,6 @@ export default function Wagerswap() {
                   <><Loader2 size={24} className="animate-spin" /> Associating {receiveToken.symbol} Token...</>
                 ) : isProcessing && swapStatus === "swapping" ? (
                   <><Loader2 size={24} className="animate-spin" /> Awaiting Wallet Approval...</>
-                ) : isProcessing && swapStatus === "payout" ? (
-                  <><Loader2 size={24} className="animate-spin" /> Processing Backend Payout...</>
                 ) : isProcessing ? (
                   <><Loader2 size={24} className="animate-spin" /> Processing...</>
                 ) : (requiresApproval && !isApproved) ? (

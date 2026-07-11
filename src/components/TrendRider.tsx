@@ -186,7 +186,8 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       if (tickRef.current) clearInterval(tickRef.current);
       if (candleRef.current) clearInterval(candleRef.current);
     };
-  }, [gameState, isChartFrozen, timeLeft, entryPrice, prediction, takeProfit, stopLoss]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, isChartFrozen, timeLeft > 2, entryPrice, prediction, takeProfit, stopLoss]);
 
   // --- Countdown Timer ---
   useEffect(() => {
@@ -248,6 +249,15 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       setTimeLeft(5); // Exactly 5 seconds
       setPnlMultiplier(1.0);
       setIsChartFrozen(false);
+
+      // Award WagerPoints immediately after successful transaction
+      const wagerAmount = parseFloat(wager);
+      if (wagerAmount >= 10.00) {
+        addWagerPoints(800);
+        console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
+      } else {
+        console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
+      }
     } catch (err: any) {
       const msg = err?.message || "Transaction failed. Check your wallet.";
       setTxError(msg);
@@ -290,7 +300,10 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       // Execute Payout via Backend
       fetch("/api/payout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+        },
         body: JSON.stringify({ 
           accountId, 
           winAmount: finalReturn.toFixed(2),
@@ -298,16 +311,6 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
           direction: 'GAME_WIN'
         })
       }).catch(err => console.error("Payout API error:", err));
-    }
-
-    // Award WagerPoints independently of win/loss
-    const wagerAmount = parseFloat(wager);
-    if (wagerAmount >= 10.00) {
-      addWagerPoints(800);
-      console.log("🎮 Valid Qualifying Wager: Awarded 800 WagerPoints.");
-    } else {
-      // Explicitly award 0 points for micro-bets
-      console.log("🎮 Micro-Bet Detected (< 10 $WAGER): Awarded 0 WagerPoints.");
     }
 
     // Reset after 4 seconds

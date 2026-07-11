@@ -141,7 +141,10 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         // Payout (non-blocking, don't await)
         fetch("/api/payout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+          },
           body: JSON.stringify({ 
             accountId, 
             winAmount,

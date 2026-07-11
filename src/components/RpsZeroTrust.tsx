@@ -104,7 +104,10 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
         const winAmount = (parseFloat(wager) * 2.0).toFixed(2);
         fetch("/api/payout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+          },
           body: JSON.stringify({ accountId, winAmount, wagerAmount: wager, direction: 'GAME_WIN' })
         }).then(async r => { if (!r.ok) console.error(await r.text()) }).catch(console.error);
 
@@ -112,7 +115,10 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
         // Refund exactly 1x the wager
         fetch("/api/payout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+          },
           body: JSON.stringify({ accountId, winAmount: wager, wagerAmount: wager, direction: 'GAME_WIN' })
         }).then(async r => { if (!r.ok) console.error(await r.text()) }).catch(console.error);
       }

@@ -175,14 +175,20 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       const winAmount = (parseFloat(wager) * mult).toFixed(2);
       fetch("/api/payout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+        },
         body: JSON.stringify({ accountId, winAmount, wagerAmount: wager, direction: 'GAME_WIN' })
       }).then(async r => { if (!r.ok) console.error(await r.text()) }).catch(console.error);
 
     } else if (status === "tie") {
       fetch("/api/payout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
+        },
         body: JSON.stringify({ accountId, winAmount: wager, wagerAmount: wager, direction: 'GAME_WIN' })
       }).then(async r => { if (!r.ok) console.error(await r.text()) }).catch(console.error);
     }

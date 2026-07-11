@@ -157,7 +157,7 @@ export async function POST(req: Request) {
       tx.setTransactionMemo(memoStr);
     } 
     // ─── Game Win Payouts ─────────────────────────────────────────────────
-    else if (winAmount || hbarAmount) {
+    else if (direction === 'GAME_WIN' || winAmount || hbarAmount) {
       let calculatedWagerAmount = hbarAmount 
         ? parseFloat(hbarAmount.toString()) 
         : parseFloat(winAmount.toString());

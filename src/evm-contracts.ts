@@ -32,7 +32,7 @@ export const WAGER_GAMES_ABI = [
 
 export function getCleanFunctionBytes(hexString: string): Uint8Array {
   const hex = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
-  const cleanBytes = new window.Uint8Array(hex.length / 2);
+  const cleanBytes = new Uint8Array(hex.length / 2);
   for(let i = 0; i < hex.length; i += 2) {
     cleanBytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
   }

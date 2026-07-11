@@ -7,7 +7,7 @@ import React, {
   useState,
   ReactNode,
 } from "react";
-import { createAppKit } from "@reown/appkit/react";
+import { createAppKit, useAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { defineChain } from "viem";
 import { WagmiProvider, useAccount, useDisconnect, useSwitchChain } from "wagmi";
@@ -143,6 +143,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   const { address, isConnected, isConnecting, chainId } = useAccount();
   const { disconnectAsync } = useDisconnect();
   const { switchChain, switchChainAsync } = useSwitchChain();
+  const { open } = useAppKit();
 
   // Force-switch network if the wallet is reporting the wrong chain (e.g. HashPack returning 295 instead of 296)
   useEffect(() => {
@@ -301,7 +302,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   };
 
   const connect = async () => {
-    // We do not programmatically open the modal here, we let the <appkit-button> handle it.
+    await open();
   };
 
   const disconnectWallet = async () => {

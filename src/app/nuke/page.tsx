@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 
 export default function NukePage() {
-  const [status, setStatus] = useState("Initializing nuke sequence...");
+  const [status, setStatus] = useState("Waiting for confirmation...");
+  const [hasConfirmed, setHasConfirmed] = useState(false);
 
   useEffect(() => {
+    if (!hasConfirmed) return;
+
     async function wipeAll() {
       setStatus("Wiping localStorage...");
       localStorage.clear();
@@ -39,11 +42,19 @@ export default function NukePage() {
     }
 
     wipeAll();
-  }, []);
+  }, [hasConfirmed]);
 
   return (
-    <div className="flex items-center justify-center h-screen bg-black text-green-500 font-mono text-xl">
-      {status}
+    <div className="flex flex-col items-center justify-center h-screen bg-black text-green-500 font-mono text-xl space-y-8">
+      <div>{status}</div>
+      {!hasConfirmed && (
+        <button 
+          onClick={() => setHasConfirmed(true)}
+          className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-colors"
+        >
+          CONFIRM NUKE
+        </button>
+      )}
     </div>
   );
 }
