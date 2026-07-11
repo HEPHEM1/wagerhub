@@ -144,7 +144,7 @@ export default function Header() {
             className="bg-wager-cyan hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,255,255,0.3)] uppercase tracking-widest flex items-center gap-2"
           >
             <Wallet size={14} />
-            Connect Wallet
+            Access WagerHub
           </button>
         ) : (
           /* ── Connected state ──────────────────────────────────────────────── */

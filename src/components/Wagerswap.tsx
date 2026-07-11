@@ -83,7 +83,7 @@ export default function Wagerswap() {
   const { isConnected, accountId, walletType, balances, network, wagerPoints, addWagerPoints, executeTransaction, executeEVMTransfer, executeEVMSmartContract, refreshBalances } = useWagerWallet();
 
   // ── Reward Banner State ──────────────────────────────────────────────────────
-  // Phase 1: one-time 500 WagerCredits welcome gift (keyed in localStorage)
+  // Phase 1: one-time 70 WagerCredits welcome gift (keyed in localStorage)
   const [hasClaimedWelcome, setHasClaimedWelcome] = useState(false);
   const [isClaimingWelcome, setIsClaimingWelcome] = useState(false);
   // Phase 2: 12-hourly 100 WagerPoint claim — stores last claim UNIX ms timestamp
@@ -133,7 +133,7 @@ export default function Wagerswap() {
         body: JSON.stringify({
           accountId,
           receiveTokenId: "0.0.8818191", // WAGER_TOKEN_ID
-          receiveAmountStr: "500"
+          receiveAmountStr: "70"
         }),
       });
 
@@ -637,7 +637,7 @@ export default function Wagerswap() {
       {/* ── Reward Banner (two-phase) ─────────────────────────────────────── */}
       <AnimatePresence mode="wait">
         {!hasClaimedWelcome ? (
-          /* PHASE 1 — One-time Welcome Gift: 500 WagerCredits from the house */
+          /* PHASE 1 — One-time Welcome Gift: 70 WagerCredits from the house */
           <motion.div
             key="welcome"
             initial={{ height: 0, opacity: 0, marginBottom: 0 }}
@@ -649,7 +649,7 @@ export default function Wagerswap() {
               <div className="flex items-center gap-4">
                 <div className="bg-wager-lime/20 p-2 rounded-lg text-2xl">🎁</div>
                 <div>
-                  <h4 className="text-wager-lime text-sm font-black tracking-tight uppercase">Welcome Gift — 500 $WAGER</h4>
+                  <h4 className="text-wager-lime text-sm font-black tracking-tight uppercase">Welcome Gift — 70 $WAGER</h4>
                   <p className="text-amber-400/80 text-[11px] uppercase font-black tracking-tighter">One-time bonus from the house · Claim now!</p>
                 </div>
               </div>

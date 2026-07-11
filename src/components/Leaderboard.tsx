@@ -38,7 +38,13 @@ export default function Leaderboard() {
 
   const top3 = leaderboardData.slice(0, 3);
   const theRest = leaderboardData.slice(3);
-  const currentUserRank = leaderboardData.find(u => u.accountId === accountId)?.rank;
+  const currentUserEntry = leaderboardData.find(u => {
+    const norm1 = u.accountId.startsWith('0x') ? u.accountId.toLowerCase() : u.accountId;
+    const norm2 = accountId?.startsWith('0x') ? accountId.toLowerCase() : accountId;
+    return norm1 === norm2;
+  });
+  const currentUserRank = currentUserEntry?.rank;
+  const currentUserMonthlyPoints = currentUserEntry?.points || 0;
 
   return (
     <div className="w-full max-w-6xl mx-auto p-8 flex flex-col gap-12">
@@ -123,7 +129,7 @@ export default function Leaderboard() {
                 {shortAccountId} <span className="text-xs text-wager-cyan ml-2">(YOU)</span>
               </div>
               <div className="col-span-3 text-right">
-                <span className="font-black text-wager-cyan">{wagerPoints.toLocaleString()}</span>
+                <span className="font-black text-wager-cyan">{currentUserMonthlyPoints.toLocaleString()}</span>
                 <span className="text-[10px] text-wager-cyan/60 ml-1 font-bold">PTS</span>
               </div>
             </div>

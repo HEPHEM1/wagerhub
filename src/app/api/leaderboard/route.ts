@@ -44,11 +44,12 @@ export async function GET() {
         const rawStr = atob(m.message);
         const parsed = JSON.parse(rawStr);
 
-        const accountId = parsed.accountId;
+        const rawAccountId = parsed.accountId;
         // Support both old "creditsEarned" and new "pointsEarned" keys for smooth transition
         const earned = parsed.pointsEarned || parsed.creditsEarned || 0;
 
-        if (accountId && typeof earned === 'number') {
+        if (rawAccountId && typeof earned === 'number') {
+          const accountId = rawAccountId.startsWith('0x') ? rawAccountId.toLowerCase() : rawAccountId;
           if (!scores[accountId]) {
             scores[accountId] = 0;
           }
