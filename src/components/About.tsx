@@ -28,14 +28,19 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            The WagerHub platform features a dynamic dual-metric economy designed to reward active engagement across the Dapp.
+            The WagerHub platform features a dynamic dual-metric economy designed to reward active engagement across the DApp.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">WagerPoints (Leaderboard Status):</strong> WagerPoints are your active seasonal score. They determine your rank on the global leaderboard, which automatically resets to 0 at Midnight UTC on the 1st of every calendar month.</li>
-            <li><strong className="text-white">WagerCredits (Lifetime Vault):</strong> WagerCredits are your permanent platform currency. They never reset. We enforce a strict programmatic rule: whenever your wallet earns WagerPoints, our backend spontaneously duplicates exactly 5% of that transaction and permanently adds it to your WagerCredits balance!</li>
-            <li><strong className="text-white">Earning via WagerSwap:</strong> Every swap you make through the Universal Router earns points based on the exact live USD volume. A standard swap earns 250 Points per $1.00 USD equivalent. Your first swap of the day $\ge$ $10.00 USD earns a massive 5,000 WagerPoint bonus!</li>
-            <li><strong className="text-white">Arcade Minimum Qualifying Bet:</strong> All Arcade games enforce a strict minimum bet threshold of exactly <strong>10 $WAGER</strong> (or 1.0 HBAR equivalent). Submitting a valid on-chain game transaction that meets this threshold will instantly award you a flat <strong>800 WagerPoints</strong> per round, regardless of whether you win or lose the game! If you bet less than 10 $WAGER, the game mechanics will process normally, but explicitly award 0 WagerPoints.</li>
+            <li><strong className="text-white">WagerPoints (Monthly Leaderboard Score):</strong> WagerPoints are your active seasonal score. They determine your rank on the global leaderboard, which automatically resets to 0 at Midnight UTC on the 1st of every calendar month. Grind hard each month to top the chart.</li>
+            <li><strong className="text-white">WagerCredits (Lifetime Vault):</strong> WagerCredits are your permanent platform currency and <em>never reset</em>. Every time your wallet earns WagerPoints, the backend automatically computes exactly <strong>5% of that WagerPoints award</strong> and permanently adds it to your WagerCredits balance. WagerCredits are displayed in the top header at all times.</li>
+            <li><strong className="text-white">Welcome Gift — 70 $WAGER:</strong> Every new wallet that connects to WagerHub receives a one-time welcome gift of <strong>70 $WAGER</strong> directly from the house treasury. This is a real on-chain transfer and can only be claimed once per wallet address.</li>
+            <li><strong className="text-white">12-Hour Loyalty Claim — 100 WagerPoints:</strong> After claiming your Welcome Gift, a recurring 12-hour bonus timer activates. Every 12 hours you may claim <strong>100 WagerPoints</strong> as a loyalty reward — keeping you on the leaderboard even between sessions.</li>
+            <li><strong className="text-white">Earning via WagerSwap:</strong> Every swap you execute through the Universal Router earns points based on the exact live USD volume of that swap. A standard swap earns <strong>250 WagerPoints per $1.00 USD equivalent</strong>. Your first qualifying swap of the day (≥ $10.00 USD) earns a massive <strong>5,000 WagerPoint daily bonus</strong>!</li>
+            <li><strong className="text-white">Arcade Minimum Qualifying Bet:</strong> All Arcade games enforce a minimum bet threshold of <strong>10 $WAGER</strong> (or 1.0 HBAR equivalent). Submitting a valid on-chain game transaction at or above this threshold instantly awards you a flat <strong>800 WagerPoints per round</strong>, regardless of whether you win or lose. Bets below 10 $WAGER earn 0 WagerPoints.</li>
           </ul>
+          <p className="text-amber-400/80 text-xs border border-amber-400/20 rounded-xl px-4 py-3 bg-amber-400/5">
+            ⚠️ <strong>Testnet Notice:</strong> WagerHub is currently live on the Hedera Testnet. All $WAGER tokens, HBAR, USDC, and USDT used within the platform are testnet assets with no real-world monetary value.
+          </p>
         </div>
       )
     },
@@ -47,32 +52,34 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            The Universal Router is WagerHub's flagship multi-token decentralized exchange interface. It allows you to seamlessly swap between any combination of the four core platform assets with zero hidden fees.
+            The Universal Router is WagerHub's flagship multi-token decentralized exchange interface, built on Hedera. It allows you to seamlessly swap between any combination of the four core platform assets with zero hidden fees.
           </p>
           <ul className="list-disc pl-5 space-y-2">
             <li><strong className="text-white">Supported Tokens:</strong> HBAR, $WAGER, USDC, and USDT. Any of the 12 possible pair combinations can be executed in a single transaction.</li>
-            <li><strong className="text-white">Live Oracle Pricing:</strong> Exchange rates are sourced in real-time from the SaucerSwap REST API, with an automatic CoinGecko fallback and a static safety net. Prices refresh silently every 30 seconds. A pulsing green dot on the rate ticker confirms live data is active.</li>
-            <li><strong className="text-white">$WAGER Rate Rule:</strong> The $WAGER token is a custom platform asset not listed on external price feeds. Its rate is always enforced as a strict internal constant: <strong>1 HBAR = 10 $WAGER</strong>, derived mathematically from the live HBAR price.</li>
+            <li><strong className="text-white">Live Oracle Pricing:</strong> Exchange rates are sourced in real-time from the SaucerSwap REST API, with an automatic CoinGecko fallback and a static safety net. Prices refresh silently every 30 seconds. A pulsing green dot on the rate ticker confirms live data is active; an amber dot indicates fallback pricing is in use.</li>
+            <li><strong className="text-white">$WAGER Rate Rule:</strong> The $WAGER token is a custom platform asset not listed on external price feeds. Its rate is always enforced as a strict internal constant: <strong>1 HBAR = 10 $WAGER</strong>, derived mathematically from the live HBAR/USD price.</li>
+            <li><strong className="text-white">Blocked Routes:</strong> Direct swaps between $WAGER and stablecoins (USDC / USDT) are intentionally blocked by the router. To convert between them, route via HBAR as an intermediary (e.g. $WAGER → HBAR → USDC).</li>
             <li><strong className="text-white">Token Association:</strong> Before any HTS token swap is executed, the router automatically checks whether your wallet is associated with the receiving token. If not, it batches all required <code>TokenAssociateTransaction</code>s into a single wallet prompt — so you never need to manually associate tokens.</li>
-            <li><strong className="text-white">WagerPoints on Swaps:</strong> Every swap earns 250 WagerPoints per $1.00 USD equivalent. Your first qualifying swap of the day (≥ $10.00 USD) earns a 5,000 WagerPoint bonus!</li>
+            <li><strong className="text-white">WagerPoints on Swaps:</strong> Every swap earns <strong>250 WagerPoints per $1.00 USD equivalent</strong>. Your first qualifying swap of the day (≥ $10.00 USD) earns a <strong>5,000 WagerPoint daily bonus</strong>.</li>
           </ul>
         </div>
       )
     },
     {
       id: "live-feed",
-      title: "HCS Live Feed",
+      title: "Simulated Platform Feed",
       icon: <Radio size={32} className="text-green-400" />,
       color: "text-green-400 border-green-400/30 bg-green-400/10",
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            The HCS Live Feed is a real-time activity stream displayed on the WagerHub dashboard, simulating a live WebSocket event feed of platform-wide activity.
+            The Simulated Platform Feed is an animated activity stream displayed on the WagerSwap dashboard, designed to replicate the feel of a live WebSocket event feed showing platform-wide activity.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">What it Shows:</strong> Swap events, arcade game outcomes (wins and WagerPoint milestones), and leaderboard achievements — all attributed to realistic Hedera wallet IDs.</li>
-            <li><strong className="text-white">Live Cadence:</strong> A new activity event slides into the feed every 3 to 6 seconds, creating a dynamic and active platform feel.</li>
-            <li><strong className="text-white">Smooth Animations:</strong> Each new event slides in from the top with a fade-in transition, shifting older events down the list gracefully.</li>
+            <li><strong className="text-white">What it Shows:</strong> Simulated swap events, arcade game outcomes (wins and WagerPoint milestones), and 12-hour loyalty claim events — all attributed to randomly generated Hedera-format wallet IDs.</li>
+            <li><strong className="text-white">Cadence:</strong> A new activity event slides into the feed every 3 to 6 seconds, creating a dynamic and active platform feel.</li>
+            <li><strong className="text-white">Smooth Animations:</strong> Each new event slides in from the top with a spring fade-in transition, shifting older events down the list gracefully. A maximum of 5 events are displayed at any time.</li>
+            <li><strong className="text-white">Transparency:</strong> The feed is explicitly labelled <em>Simulated Feed</em> to make clear these are not live on-chain events. It serves as a visual activity indicator for the testnet phase.</li>
           </ul>
         </div>
       )
@@ -85,12 +92,13 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            Trend Rider is a highly volatile, 5-second market prediction simulation. 
+            Trend Rider is a high-volatility, 5-second market prediction simulation. Place your wager, pick a direction, and ride a candlestick chart to your fortune.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">How to Play:</strong> Predict whether the asset price will go LONG (Up) or SHORT (Down).</li>
-            <li><strong className="text-white">Take Profit & Stop Loss:</strong> Set precise absolute targets. If the volatile price hits your Take Profit, you automatically secure the win. If it hits Stop Loss, you minimize your risk.</li>
-            <li><strong className="text-white">500x Synthetic Leverage:</strong> Your final payout multiplier scales dynamically based on how far the price moves in your direction. If the multiplier drops to zero, you are instantly liquidated.</li>
+            <li><strong className="text-white">How to Play:</strong> Select your wager amount, then predict whether the asset price will go <strong>LONG (Up)</strong> or <strong>SHORT (Down)</strong> within the 5-second candle window.</li>
+            <li><strong className="text-white">Take Profit & Stop Loss:</strong> Set precise absolute price targets before confirming your position. If the volatile price hits your Take Profit target, you automatically secure the win. If it hits your Stop Loss, the position closes to limit further losses.</li>
+            <li><strong className="text-white">500x Synthetic Leverage:</strong> Your final payout multiplier scales dynamically based on how far the price moves in your direction during the candle. If the multiplier drops to zero before expiry, your position is instantly liquidated.</li>
+            <li><strong className="text-white">WagerPoints:</strong> Every valid wager of ≥ 10 $WAGER awards <strong>800 WagerPoints</strong> immediately upon transaction confirmation, win or lose.</li>
           </ul>
         </div>
       )
@@ -103,12 +111,14 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            Mystery Field is a strategic grid-based hazard game where compound multipliers reward the bold.
+            Mystery Field is a strategic grid-based hazard game where compounding multipliers reward the bold — but a single mine ends everything.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">How to Play:</strong> Select a difficulty level (Easy to Extreme) which dictates the number of hidden mines on the grid.</li>
-            <li><strong className="text-white">Clicking Tiles:</strong> Click on safe tiles to reveal multipliers. Every safe tile compounds your total potential payout.</li>
-            <li><strong className="text-white">Cash Out:</strong> At any point before hitting a mine, you can click "Cash Out" to secure your compounded multiplier. If you hit a mine, your wager is lost.</li>
+            <li><strong className="text-white">How to Play:</strong> Select a difficulty level (Easy to Extreme) which dictates the number of hidden mines on the 5×5 grid, then submit your wager on-chain to begin.</li>
+            <li><strong className="text-white">Clicking Tiles:</strong> Click on tiles to reveal them. Safe tiles compound your total potential payout multiplier. Every additional safe tile you reveal increases the risk — and the reward.</li>
+            <li><strong className="text-white">Cash Out:</strong> At any point before hitting a mine, click <strong>Cash Out</strong> to secure your compounded multiplier as a real on-chain payout. If you hit a mine, your wager is lost.</li>
+            <li><strong className="text-white">Difficulty Levels:</strong> Easy (fewer mines, lower multipliers) through Extreme (many mines, massive multipliers). Choose your risk tolerance wisely.</li>
+            <li><strong className="text-white">WagerPoints:</strong> Every valid wager of ≥ 10 $WAGER awards <strong>800 WagerPoints</strong> per round regardless of outcome.</li>
           </ul>
         </div>
       )
@@ -121,12 +131,14 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            A physics-based plinko-style game where gravity dictates your fortune.
+            A physics-based Plinko-style game where gravity dictates your fortune. Drop the ball and watch it bounce through a field of pegs toward its fate.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">How to Play:</strong> Select your wager and drop the ball from the top of the peg board.</li>
-            <li><strong className="text-white">Physics Engine:</strong> The ball realistically bounces off pegs, randomly altering its trajectory.</li>
-            <li><strong className="text-white">Multipliers:</strong> The ball lands in one of the bottom slots, each containing a specific payout multiplier ranging from heavy losses in the center to massive jackpots on the outer edges.</li>
+            <li><strong className="text-white">How to Play:</strong> Set your wager (<strong>minimum 50 $WAGER</strong>), choose your number of peg rows, and select a risk level. Then drop the ball from the top of the peg board.</li>
+            <li><strong className="text-white">Physics Engine:</strong> The ball realistically bounces off pegs, with each collision randomly altering its trajectory left or right as it falls.</li>
+            <li><strong className="text-white">Multipliers:</strong> The ball lands in one of the bottom slots, each carrying a specific payout multiplier. Slots near the outer edges carry higher jackpot multipliers; centre slots carry lower-risk but lower-reward multipliers.</li>
+            <li><strong className="text-white">Risk Levels:</strong> Higher risk settings increase the spread of multiplier values — pushing both jackpot peaks and loss troughs further apart.</li>
+            <li><strong className="text-white">WagerPoints:</strong> Every valid wager of ≥ 10 $WAGER awards <strong>800 WagerPoints</strong> per drop.</li>
           </ul>
         </div>
       )
@@ -139,12 +151,14 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            A tense, 6-zone penalty shootout against a randomized AI goalkeeper.
+            A tense, 6-zone penalty shootout against a randomized AI goalkeeper. Pick your zones, lock your shot, and hope the keeper dives the wrong way.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">How to Play:</strong> Select at least two target zones in the net where you want to shoot the ball.</li>
-            <li><strong className="text-white">The Dive:</strong> Once locked, the AI Keeper randomly dives to cover specific zones.</li>
-            <li><strong className="text-white">Resolution:</strong> If the Keeper dives into ANY of your selected zones, your shot is saved and you lose. If they miss, you score a GOAL and double your wager.</li>
+            <li><strong className="text-white">How to Play:</strong> Select <strong>at least 2 target zones</strong> in the net where you want to aim your shot, then submit your wager on-chain to lock the decision.</li>
+            <li><strong className="text-white">The Dive:</strong> Once your shot is locked, the AI Keeper randomly dives to cover <strong>exactly 2 of the 6 zones</strong>.</li>
+            <li><strong className="text-white">Resolution:</strong> If the Keeper dives into <em>any</em> of your selected zones, your shot is saved and you lose your wager. If they miss all your zones, you score a <strong>GOAL</strong> and receive a <strong>2x payout</strong> (double your wager) from the treasury.</li>
+            <li><strong className="text-white">Strategy:</strong> Selecting more zones increases your chance of scoring but does not change the payout multiplier — it remains 2x. Balance coverage vs. risk carefully.</li>
+            <li><strong className="text-white">WagerPoints:</strong> Every valid wager of ≥ 10 $WAGER awards <strong>800 WagerPoints</strong> per round, win or lose.</li>
           </ul>
         </div>
       )
@@ -157,12 +171,14 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            Minesweeper stripped of all logic, leaving only pure, brutal luck.
+            Blind Loot is a high-stakes loot box experience stripped of all logic, leaving only pure, brutal luck. Two paths — Blessed or Cursed — diverge before you.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">How to Play:</strong> Click random tiles on the grid.</li>
-            <li><strong className="text-white">No Clues:</strong> Unlike traditional minesweeper, there are no numbers or hints. You must rely entirely on intuition.</li>
-            <li><strong className="text-white">Cash Out:</strong> Cash out your accumulated multiplier at any time before selecting a deadly tile.</li>
+            <li><strong className="text-white">Fixed Wager:</strong> Unlike other games, Blind Loot uses a <strong>fixed wager of 100 $WAGER</strong> per round. There is no variable bet — every player stakes the same amount.</li>
+            <li><strong className="text-white">Choose Your Path:</strong> Select either the <strong>Blessed Path</strong> (standard risk, standard reward) or the <strong>Cursed Path</strong> (higher risk, cursed multiplier) before revealing your fate.</li>
+            <li><strong className="text-white">No Clues:</strong> Unlike traditional minesweeper, there are no numbers, no patterns, and no hints. You must rely entirely on intuition and chance.</li>
+            <li><strong className="text-white">Cash Out:</strong> Cash out your accumulated multiplier at any time before selecting a deadly tile to lock in a real on-chain payout.</li>
+            <li><strong className="text-white">WagerPoints:</strong> The fixed 100 $WAGER wager exceeds the 10 $WAGER threshold, so every round automatically awards <strong>800 WagerPoints</strong>.</li>
           </ul>
         </div>
       )
@@ -175,12 +191,13 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            A cryptographically secure execution of Rock, Paper, Scissors.
+            A cryptographically committed execution of Rock, Paper, Scissors. The opponent's move is generated on-chain before your wager is confirmed — ensuring provably fair outcomes.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">How to Play:</strong> Select Rock, Paper, or Scissors and lock your wager.</li>
-            <li><strong className="text-white">Provably Fair:</strong> The opponent's move is generated randomly. Standard RPS rules apply (Rock &gt; Scissors &gt; Paper &gt; Rock).</li>
-            <li><strong className="text-white">Resolution:</strong> Win to double your wager, lose to forfeit, or draw to get your wager refunded.</li>
+            <li><strong className="text-white">How to Play:</strong> Select your wager amount (minimum 10 $WAGER), choose Rock, Paper, or Scissors, and lock your wager on-chain.</li>
+            <li><strong className="text-white">Provably Fair:</strong> The house commitment (SHA-256 hash of the opponent's move) is published on-screen <em>before</em> your transaction is submitted. After the round resolves, you can verify the pre-commitment matches the revealed move. Standard RPS rules apply: Rock beats Scissors, Scissors beats Paper, Paper beats Rock.</li>
+            <li><strong className="text-white">Resolution:</strong> <strong>Win</strong> — receive a <strong>2x payout</strong> (double your wager). <strong>Lose</strong> — forfeit your wager. <strong>Draw</strong> — your wager is refunded in full.</li>
+            <li><strong className="text-white">WagerPoints:</strong> Every valid wager of ≥ 10 $WAGER awards <strong>800 WagerPoints</strong> per round, regardless of outcome.</li>
           </ul>
         </div>
       )
