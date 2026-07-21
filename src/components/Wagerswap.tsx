@@ -471,7 +471,7 @@ export default function Wagerswap() {
     setIsProcessing(true);
 
     try {
-      // ── Step 1: ERC20 approval
+      // ── Step 1: ERC20 approval (approve max so user never needs to re-approve)
       if (requiresApproval && !isApproved) {
         setSwapStatus("associating");
         
@@ -482,14 +482,14 @@ export default function Wagerswap() {
            tokenEVMAddress = "0x" + num.toString(16).padStart(40, '0');
         }
         
-        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
-        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
+        // Approve max uint256 — user never needs to re-approve this token again
+        const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 
         const appRes = await executeEVMSmartContract(
           tokenEVMAddress,
           ERC20_ABI,
           "approve",
-          [MOCK_WAGER_SWAP_POOL_ADDRESS, amountInTokens.toString()]
+          [MOCK_WAGER_SWAP_POOL_ADDRESS, MAX_UINT256]
         );
         
         if (!appRes || appRes.status !== "SUCCESS") {
@@ -497,9 +497,8 @@ export default function Wagerswap() {
         }
 
         setIsApproved(true);
-        setSwapStatus("idle");
-        setIsProcessing(false);
-        return;
+        // ✅ DO NOT return here — fall straight through to execute the swap
+        // in the same button press so user never has to click twice.
       }
 
       // ── Step 2: Batch-check + associate ALL tokens in the route ────────────────
