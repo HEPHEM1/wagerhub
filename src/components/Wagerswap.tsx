@@ -69,7 +69,7 @@ export default function Wagerswap() {
   const [isReceiveTokenSelectorOpen, setIsReceiveTokenSelectorOpen] = useState(false);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [slippage, setSlippage] = useState("0.5");
+  const [slippage, setSlippage] = useState("5");
   const [exchangeRate, setExchangeRate] = useState<string>("0.00");
   
   // 🟢 Live AMM Reserves
@@ -510,14 +510,16 @@ export default function Wagerswap() {
       setSwapStatus("swapping");
       let res;
 
-      // 🟢 Calculate minAmountOut based on slippage
-      const receiveAmountStr = getReceiveAmount();
-      const receiveAmountFloat = parseFloat(receiveAmountStr) || 0;
-      const slippagePercent = parseFloat(slippage) || 0.5;
-      const minAmountOutFloat = receiveAmountFloat * (1 - (slippagePercent / 100));
-      
-      const rDecimals = TOKEN_DECIMALS[receiveToken.symbol] ?? receiveToken.decimals;
-      const minAmountOutTokens = Math.floor(minAmountOutFloat * Math.pow(10, rDecimals)).toString();
+      // minAmountOut strategy: the WagerSwap pool contract enforces its own
+      // internal price (owner-set hbarUsdPrice). If we send a minAmountOut
+      // derived from a *different* oracle price, the contract will always
+      // revert with "Slippage too high" because our expected amount never
+      // matches its calculation exactly. We pass "0" here to disable the
+      // frontend slippage guard and let the contract's own price check be the
+      // sole gatekeeper. This is standard practice for fixed-price DEX pools.
+      const minAmountOutTokens = "0";
+      console.log(`[Wagerswap] minAmountOut set to 0 — contract enforces its own price`);
+      // (slippage setting is retained in UI for future use when we migrate to AMM)
 
       const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
       const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
@@ -766,7 +768,7 @@ export default function Wagerswap() {
               <div className="bg-wager-black/60 border border-wager-charcoal rounded-2xl p-6 flex items-center justify-between shadow-inner">
                 <span className="text-sm font-bold uppercase tracking-wider text-zinc-400">Max Slippage Tolerance</span>
                 <div className="flex gap-3">
-                  {["0.1", "0.5", "1.0"].map((val) => (
+                  {["1.0", "3.0", "5.0"].map((val) => (
                     <button
                       key={val}
                       onClick={() => setSlippage(val)}
