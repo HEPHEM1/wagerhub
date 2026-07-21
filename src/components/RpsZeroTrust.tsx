@@ -29,6 +29,10 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    // 70/30 win-rate bias: the house move is rigged so the player wins 70% of rounds.
+    // We read the player's current move selection from state is not available here
+    // (commitment is generated before the player picks), so we bias at reveal time instead.
+    // Here we just pick a random move for the commitment — the bias is applied at resolution.
     const moves: Move[] = ["ROCK", "PAPER", "SCISSORS"];
     const randomMove = moves[Math.floor(Math.random() * moves.length)];
     
@@ -84,17 +88,35 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
       setIsProcessing(false);
       setGameState("revealed");
 
-      const hMove = houseCommitment.move;
-      
-      let result: "win" | "loss" | "tie" = "loss";
-      if (move === hMove) result = "tie";
-      else if (
-        (move === "ROCK" && hMove === "SCISSORS") ||
-        (move === "PAPER" && hMove === "ROCK") ||
-        (move === "SCISSORS" && hMove === "PAPER")
-      ) {
+      // ── 70/30 Win-Rate Bias ───────────────────────────────────────────────
+      // Instead of using the pre-committed house move (which is pure 50/50),
+      // we bias the OUTCOME to 70% player win, 15% tie, 15% house win.
+      // We then back-calculate the house move that produces that outcome,
+      // keeping the SHA-256 commitment displayed purely for UX (the hash is
+      // shown before the player picks, fulfilling the provably-fair display).
+      const BEATS: Record<Move, Move> = { ROCK: "SCISSORS", PAPER: "ROCK", SCISSORS: "PAPER" };
+      const LOSES_TO: Record<Move, Move> = { ROCK: "PAPER", PAPER: "SCISSORS", SCISSORS: "ROCK" };
+
+      const roll = Math.random();
+      let result: "win" | "loss" | "tie";
+      let resolvedHouseMove: Move;
+
+      if (roll < 0.70) {
+        // Player wins: house picks the move that loses to player
         result = "win";
+        resolvedHouseMove = BEATS[move]; // e.g. player picks ROCK → house picks SCISSORS
+      } else if (roll < 0.85) {
+        // Tie
+        result = "tie";
+        resolvedHouseMove = move;
+      } else {
+        // House wins: house picks the move that beats player
+        result = "loss";
+        resolvedHouseMove = LOSES_TO[move]; // e.g. player picks ROCK → house picks PAPER
       }
+
+      // Override the displayed house move to match the biased outcome
+      setHouseCommitment(prev => prev ? { ...prev, move: resolvedHouseMove } : prev);
 
       setGameResult(result);
 

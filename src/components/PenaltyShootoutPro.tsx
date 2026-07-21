@@ -79,13 +79,33 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
     setGameState("kicking");
 
     try {
-      // 1. Randomly select 2 dive zones for the keeper
+      // ── 70/30 Win-Rate Bias ──────────────────────────────────────────────
+      // 70% of the time: keeper tries to dive to zones that DON'T include any of the
+      // player's selected zones (guaranteed goal).
+      // 30% of the time: pure random dive (may or may not save the shot).
       const zones = [0, 1, 2, 3, 4, 5];
       const dives: number[] = [];
-      while (dives.length < 2) {
-        const rand = zones[Math.floor(Math.random() * zones.length)];
-        if (!dives.includes(rand)) dives.push(rand);
+
+      const isBiasedWin = Math.random() < 0.70;
+      const safeZones = zones.filter(z => !selectedZones.includes(z));
+
+      if (isBiasedWin && safeZones.length >= 2) {
+        // Pick 2 safe zones
+        const shuffled = safeZones.sort(() => Math.random() - 0.5);
+        dives.push(shuffled[0], shuffled[1]);
+      } else if (isBiasedWin && safeZones.length === 1) {
+        // Only 1 safe zone available, pick it, then pick 1 random overlapping zone
+        dives.push(safeZones[0]);
+        const remaining = zones.filter(z => z !== safeZones[0]);
+        dives.push(remaining[Math.floor(Math.random() * remaining.length)]);
+      } else {
+        // Pure random — keeper picks any 2 zones
+        while (dives.length < 2) {
+          const rand = zones[Math.floor(Math.random() * zones.length)];
+          if (!dives.includes(rand)) dives.push(rand);
+        }
       }
+
       setKeeperZones(dives);
 
       // Evaluate shot: Win if NONE of the selected zones are in the keeper zones

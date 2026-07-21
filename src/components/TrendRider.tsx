@@ -48,6 +48,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
 
   const tickRef = useRef<NodeJS.Timeout | null>(null);
   const candleRef = useRef<NodeJS.Timeout | null>(null);
+  const biasedWinRef = useRef<boolean>(false);
 
   // --- Candlestick Simulation Engine ---
   useEffect(() => {
@@ -75,7 +76,18 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
     tickRef.current = setInterval(() => {
       setCurrentPrice((prevPrice) => {
         const volatility = gameState === "active" ? (isPhase1 ? 150 : 60) : 30; // Massive volatility vs heavy thumps
-        const change = (Math.random() - 0.5) * volatility;
+        let change = (Math.random() - 0.5) * volatility;
+        
+        // ── 70/30 Win-Rate Bias ──
+        // Drift the price favorably 70% of the time, unfavorably 30% of the time
+        if (gameState === "active" && prediction) {
+           const drift = volatility * 0.25;
+           if (biasedWinRef.current) {
+             change += prediction === "LONG" ? drift : -drift;
+           } else {
+             change += prediction === "LONG" ? -drift : drift;
+           }
+        }
         
         // Massive random spikes
         const isSpike = Math.random() > 0.98;
@@ -248,6 +260,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       setGameState("active");
       setTimeLeft(5); // Exactly 5 seconds
       setPnlMultiplier(1.0);
+      biasedWinRef.current = Math.random() < 0.70;
       setIsChartFrozen(false);
 
       // Award WagerPoints immediately after successful transaction

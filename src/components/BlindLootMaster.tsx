@@ -39,7 +39,7 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
       // 5-second polling/reveal delay
       await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // 50/50 Outcome for the demo
+      // 50/50 Outcome for the demo (per user instruction)
       const isWin = Math.random() > 0.5;
       
       if (isWin) {

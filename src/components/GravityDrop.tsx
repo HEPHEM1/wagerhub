@@ -117,7 +117,7 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       isProcessingRef.current = false;
       setIsDropping(true);
 
-      // Generate Deterministic Path
+      // Generate Biased Deterministic Path (70% win rate)
       const pathCoords = [];
       let currentX = CANVAS_WIDTH / 2;
       let currentY = START_Y;
@@ -129,22 +129,49 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
 
       const saltArray = new Uint8Array(rows);
       window.crypto.getRandomValues(saltArray);
-      
-      let rights = 0;
-      for(let i = 0; i < rows; i++) {
-         const isRight = saltArray[i] % 2 === 1;
-         if (isRight) rights++;
-         
-         currentX += isRight ? (colWidth / 2) : -(colWidth / 2);
-         currentY += rowHeight;
-         
-         // Add a tiny randomness to Y to make bounces look natural without breaking determinism
-         const bounceOffset = (saltArray[i] % 5) - 2;
-         pathCoords.push({ x: currentX, y: currentY + bounceOffset });
+
+      // ── 70/30 Win-Rate Bias ──────────────────────────────────────────────
+      // Determine target bucket first, then reverse-engineer the path.
+      // A winning bucket has multiplier > 1. We identify winning buckets from
+      // getMultipliers() and bias the final landing zone 70% of the time.
+      const allMults = getMultipliers();
+      const bucketCount = rows + 1;
+      const winningBuckets = allMults.map((m, i) => ({ i, m })).filter(b => b.m > 1).map(b => b.i);
+      const losingBuckets  = allMults.map((m, i) => ({ i, m })).filter(b => b.m <= 1).map(b => b.i);
+
+      let targetBucket: number;
+      if (Math.random() < 0.70 && winningBuckets.length > 0) {
+        // Bias toward a random winning bucket
+        targetBucket = winningBuckets[Math.floor(Math.random() * winningBuckets.length)];
+      } else if (losingBuckets.length > 0) {
+        // Land on a random losing bucket
+        targetBucket = losingBuckets[Math.floor(Math.random() * losingBuckets.length)];
+      } else {
+        // Fallback: pure random
+        targetBucket = Math.floor(Math.random() * bucketCount);
+      }
+
+      // Reverse-engineer the path: targetBucket = number of right bounces
+      // We force exactly `targetBucket` right-bounces out of `rows` total.
+      const targetRights = targetBucket;
+      const directions = Array(rows).fill(false); // false = left
+      for (let i = 0; i < targetRights; i++) directions[i] = true;
+      // Shuffle directions for a natural-looking path
+      for (let i = directions.length - 1; i > 0; i--) {
+        const j = Math.floor((saltArray[i] / 255) * (i + 1));
+        [directions[i], directions[j]] = [directions[j], directions[i]];
+      }
+
+      for (let i = 0; i < rows; i++) {
+        const isRight = directions[i];
+        currentX += isRight ? (colWidth / 2) : -(colWidth / 2);
+        currentY += rowHeight;
+        const bounceOffset = (saltArray[i] % 5) - 2;
+        pathCoords.push({ x: currentX, y: currentY + bounceOffset });
       }
 
       setBallPath(pathCoords);
-      setFinalBucketIndex(rights);
+      setFinalBucketIndex(targetBucket);
 
     } catch (err: any) {
       console.error("[GravityDrop] Error:", err);
