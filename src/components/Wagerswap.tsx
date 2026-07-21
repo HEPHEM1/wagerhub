@@ -471,7 +471,7 @@ export default function Wagerswap() {
     setIsProcessing(true);
 
     try {
-      // ── Step 1: ERC20 approval (approve max so user never needs to re-approve)
+      // ── Step 1: ERC20 approval
       if (requiresApproval && !isApproved) {
         setSwapStatus("associating");
         
@@ -482,14 +482,17 @@ export default function Wagerswap() {
            tokenEVMAddress = "0x" + num.toString(16).padStart(40, '0');
         }
         
-        // Approve max uint256 — user never needs to re-approve this token again
-        const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+        // Use exact amount — Hedera HTS tokens do NOT support max uint256 approvals.
+        // Passing an astronomically large number causes the contract's transferFrom
+        // to silently reject the allowance, causing the swap to revert.
+        const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
+        const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
 
         const appRes = await executeEVMSmartContract(
           tokenEVMAddress,
           ERC20_ABI,
           "approve",
-          [MOCK_WAGER_SWAP_POOL_ADDRESS, MAX_UINT256]
+          [MOCK_WAGER_SWAP_POOL_ADDRESS, amountInTokens.toString()]
         );
         
         if (!appRes || appRes.status !== "SUCCESS") {
@@ -497,8 +500,10 @@ export default function Wagerswap() {
         }
 
         setIsApproved(true);
-        // ✅ DO NOT return here — fall straight through to execute the swap
-        // in the same button press so user never has to click twice.
+        // ✅ DO NOT return — fall straight through to execute the swap.
+        // Add a short delay so Hedera can propagate the allowance state before
+        // the swap contract calls transferFrom on it.
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
 
       // ── Step 2: Batch-check + associate ALL tokens in the route ────────────────
