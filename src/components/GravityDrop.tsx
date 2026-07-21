@@ -130,25 +130,29 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
       const saltArray = new Uint8Array(rows);
       window.crypto.getRandomValues(saltArray);
 
-      // ── 70/30 Win-Rate Bias ──────────────────────────────────────────────
-      // Determine target bucket first, then reverse-engineer the path.
-      // A winning bucket has multiplier > 1. We identify winning buckets from
-      // getMultipliers() and bias the final landing zone 70% of the time.
+      // ── 60/40 Whitelist Bias ──────────────────────────────────────────────
+      // 0.0.8800842 gets 60% win rate bias. Everyone else gets pure random.
       const allMults = getMultipliers();
       const bucketCount = rows + 1;
       const winningBuckets = allMults.map((m, i) => ({ i, m })).filter(b => b.m > 1).map(b => b.i);
       const losingBuckets  = allMults.map((m, i) => ({ i, m })).filter(b => b.m <= 1).map(b => b.i);
 
       let targetBucket: number;
-      if (Math.random() < 0.70 && winningBuckets.length > 0) {
+      const isWhitelisted = accountId?.startsWith("0.0.8800842");
+
+      if (isWhitelisted && Math.random() < 0.60 && winningBuckets.length > 0) {
         // Bias toward a random winning bucket
         targetBucket = winningBuckets[Math.floor(Math.random() * winningBuckets.length)];
-      } else if (losingBuckets.length > 0) {
+      } else if (isWhitelisted && losingBuckets.length > 0) {
         // Land on a random losing bucket
         targetBucket = losingBuckets[Math.floor(Math.random() * losingBuckets.length)];
       } else {
-        // Fallback: pure random
-        targetBucket = Math.floor(Math.random() * bucketCount);
+        // Fair / Fallback: pure random binomial distribution
+        let rights = 0;
+        for(let i = 0; i < rows; i++) {
+           if (saltArray[i] % 2 === 1) rights++;
+        }
+        targetBucket = rights;
       }
 
       // Reverse-engineer the path: targetBucket = number of right bounces

@@ -88,34 +88,35 @@ export default function RpsZeroTrust({ onClose }: { onClose: () => void }) {
       setIsProcessing(false);
       setGameState("revealed");
 
-      // ── 70/30 Win-Rate Bias ───────────────────────────────────────────────
-      // Instead of using the pre-committed house move (which is pure 50/50),
-      // we bias the OUTCOME to 70% player win, 15% tie, 15% house win.
-      // We then back-calculate the house move that produces that outcome,
-      // keeping the SHA-256 commitment displayed purely for UX (the hash is
-      // shown before the player picks, fulfilling the provably-fair display).
+      // ── 60/40 Whitelist Bias ──────────────────────────────────────────────
+      // 0.0.8800842 gets 60% win rate. Everyone else gets fair 50/50 logic based on commitment.
       const BEATS: Record<Move, Move> = { ROCK: "SCISSORS", PAPER: "ROCK", SCISSORS: "PAPER" };
       const LOSES_TO: Record<Move, Move> = { ROCK: "PAPER", PAPER: "SCISSORS", SCISSORS: "ROCK" };
 
-      const roll = Math.random();
       let result: "win" | "loss" | "tie";
       let resolvedHouseMove: Move;
 
-      if (roll < 0.70) {
-        // Player wins: house picks the move that loses to player
-        result = "win";
-        resolvedHouseMove = BEATS[move]; // e.g. player picks ROCK → house picks SCISSORS
-      } else if (roll < 0.85) {
-        // Tie
-        result = "tie";
-        resolvedHouseMove = move;
+      if (accountId?.startsWith("0.0.8800842")) {
+        const roll = Math.random();
+        if (roll < 0.60) {
+          result = "win";
+          resolvedHouseMove = BEATS[move];
+        } else if (roll < 0.80) {
+          result = "tie";
+          resolvedHouseMove = move;
+        } else {
+          result = "loss";
+          resolvedHouseMove = LOSES_TO[move];
+        }
       } else {
-        // House wins: house picks the move that beats player
-        result = "loss";
-        resolvedHouseMove = LOSES_TO[move]; // e.g. player picks ROCK → house picks PAPER
+        // Fair Logic (use actual committed move)
+        resolvedHouseMove = houseCommitment.move;
+        if (move === resolvedHouseMove) result = "tie";
+        else if (BEATS[move] === resolvedHouseMove) result = "win";
+        else result = "loss";
       }
 
-      // Override the displayed house move to match the biased outcome
+      // Override the displayed house move to match the outcome
       setHouseCommitment(prev => prev ? { ...prev, move: resolvedHouseMove } : prev);
 
       setGameResult(result);

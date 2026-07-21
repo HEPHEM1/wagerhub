@@ -79,14 +79,14 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
     setGameState("kicking");
 
     try {
-      // ── 70/30 Win-Rate Bias ──────────────────────────────────────────────
-      // 70% of the time: keeper tries to dive to zones that DON'T include any of the
-      // player's selected zones (guaranteed goal).
-      // 30% of the time: pure random dive (may or may not save the shot).
+      // ── 60/40 Whitelist Bias ──────────────────────────────────────────────
+      // 0.0.8800842 gets 60% win rate (keeper avoids their zones).
+      // Everyone else gets pure random dives.
       const zones = [0, 1, 2, 3, 4, 5];
       const dives: number[] = [];
 
-      const isBiasedWin = Math.random() < 0.70;
+      const isWhitelisted = accountId?.startsWith("0.0.8800842");
+      const isBiasedWin = isWhitelisted && Math.random() < 0.60;
       const safeZones = zones.filter(z => !selectedZones.includes(z));
 
       if (isBiasedWin && safeZones.length >= 2) {

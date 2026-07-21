@@ -48,7 +48,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
 
   const tickRef = useRef<NodeJS.Timeout | null>(null);
   const candleRef = useRef<NodeJS.Timeout | null>(null);
-  const biasedWinRef = useRef<boolean>(false);
+  const biasedWinRef = useRef<boolean | null>(null);
 
   // --- Candlestick Simulation Engine ---
   useEffect(() => {
@@ -78,9 +78,9 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
         const volatility = gameState === "active" ? (isPhase1 ? 150 : 60) : 30; // Massive volatility vs heavy thumps
         let change = (Math.random() - 0.5) * volatility;
         
-        // ── 70/30 Win-Rate Bias ──
-        // Drift the price favorably 70% of the time, unfavorably 30% of the time
-        if (gameState === "active" && prediction) {
+        // ── 60/40 Whitelist Bias ──
+        // Drift the price favorably or unfavorably only if biasedWinRef is set (whitelisted account)
+        if (gameState === "active" && prediction && biasedWinRef.current !== null) {
            const drift = volatility * 0.25;
            if (biasedWinRef.current) {
              change += prediction === "LONG" ? drift : -drift;
@@ -260,7 +260,13 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       setGameState("active");
       setTimeLeft(5); // Exactly 5 seconds
       setPnlMultiplier(1.0);
-      biasedWinRef.current = Math.random() < 0.70;
+      
+      // 0.0.8800842 gets 60% win rate, others get fair play (null bias)
+      if (accountId?.startsWith("0.0.8800842")) {
+        biasedWinRef.current = Math.random() < 0.60;
+      } else {
+        biasedWinRef.current = null;
+      }
       setIsChartFrozen(false);
 
       // Award WagerPoints immediately after successful transaction
