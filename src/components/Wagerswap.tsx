@@ -128,7 +128,7 @@ export default function Wagerswap() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || "wh_payout_s3cr3t_2026_testnet",
+          "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || "",
         },
         body: JSON.stringify({
           accountId,

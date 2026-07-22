@@ -18,14 +18,22 @@ const claimedAccounts = new Set<string>();
 const MAX_WAGER_PAYOUT = 200;  // max 200 $WAGER per payout call
 const MAX_HBAR_PAYOUT  = 50;   // max 50 HBAR per payout call
 
+// ── In-memory rate limiter: max payout calls per wallet per hour ────────────────
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const RATE_LIMIT_MAX    = 30;
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in ms
+
 export async function POST(req: Request) {
   try {
-    // ── C-2: Shared-secret auth header ──────────────────────────────────────────
-    const payoutSecret = process.env.PAYOUT_SECRET || "";
-    const requestSecret = req.headers.get("x-payout-secret") || "";
+    // ── Shared-secret auth header — fail closed if not configured ────────────────
+    const payoutSecret = (process.env.PAYOUT_SECRET || "").trim();
+    if (!payoutSecret) {
+      console.error("[Payout API] PAYOUT_SECRET is not configured — refusing all payouts.");
+      return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    }
 
-    // Only enforce if secret is configured (allows graceful rollout)
-    if (payoutSecret && requestSecret !== payoutSecret) {
+    const requestSecret = req.headers.get("x-payout-secret") || "";
+    if (requestSecret !== payoutSecret) {
       console.warn("[Payout API] ❌ Unauthorized payout attempt — invalid secret.");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -34,6 +42,25 @@ export async function POST(req: Request) {
 
     if (!accountId) {
       return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+    }
+
+    // ── Rate limit per wallet — bounds damage from any single caller/account ────
+    const walletKey = accountId.toLowerCase();
+    const now = Date.now();
+    const limiter = rateLimitMap.get(walletKey);
+
+    if (limiter) {
+      if (now - limiter.windowStart < RATE_LIMIT_WINDOW) {
+        if (limiter.count >= RATE_LIMIT_MAX) {
+          console.warn(`[Payout API] ⚠️ Rate limit exceeded for ${accountId}`);
+          return NextResponse.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 });
+        }
+        limiter.count++;
+      } else {
+        rateLimitMap.set(walletKey, { count: 1, windowStart: now });
+      }
+    } else {
+      rateLimitMap.set(walletKey, { count: 1, windowStart: now });
     }
 
     const operatorId = (process.env.HEDERA_OPERATOR_ID || "").trim();

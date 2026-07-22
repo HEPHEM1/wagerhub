@@ -7,8 +7,22 @@ import { Client, PrivateKey, TokenAssociateTransaction, TokenId, AccountId } fro
  * One-time setup endpoint to associate the Treasury account with the $WAGER token.
  * This is required before the Treasury can receive tokens from users.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // ── Shared-secret auth header — fail closed if not configured ────────────────
+    // Dedicated to this admin route; never exposed to the client bundle.
+    const adminSecret = (process.env.ADMIN_SECRET || "").trim();
+    if (!adminSecret) {
+      console.error("[Admin Associate] ADMIN_SECRET is not configured — refusing request.");
+      return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    }
+
+    const requestSecret = req.headers.get("x-admin-secret") || "";
+    if (requestSecret !== adminSecret) {
+      console.warn("[Admin Associate] ❌ Unauthorized request — invalid secret.");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const operatorId = (process.env.HEDERA_OPERATOR_ID || "").trim();
     const operatorKey = (process.env.HEDERA_OPERATOR_KEY || "").trim();
     const treasuryId = (process.env.NEXT_PUBLIC_TREASURY_ID || operatorId).trim();
