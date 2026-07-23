@@ -15,17 +15,22 @@ export default function Leaderboard() {
   const shortAccountId = accountId ? `${accountId.slice(0, 6)}...${accountId.slice(-4)}` : "";
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
         const res = await fetch('/api/leaderboard');
         const json = await res.json();
-        if (json.success && json.data) {
+        if (res.ok && json.success && json.data) {
           setLeaderboardData(json.data);
+          setFetchError(null);
+        } else {
+          setFetchError(json?.error || "Failed to load leaderboard.");
         }
       } catch (e) {
         console.error("Failed to fetch leaderboard", e);
+        setFetchError("Failed to load leaderboard.");
       } finally {
         setIsLoading(false);
       }
@@ -57,6 +62,11 @@ export default function Leaderboard() {
         <div className="flex flex-col items-center justify-center min-h-[400px]">
           <Loader2 className="animate-spin text-wager-cyan w-12 h-12 mb-4" />
           <span className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Syncing HCS Ledger...</span>
+        </div>
+      ) : fetchError ? (
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
+          <span className="text-wager-red font-bold uppercase tracking-widest text-sm">Couldn't load the leaderboard right now.</span>
+          <span className="text-zinc-600 text-xs font-mono">{fetchError}</span>
         </div>
       ) : leaderboardData.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[400px]">
@@ -118,8 +128,8 @@ export default function Leaderboard() {
           <div className="col-span-3 text-right">WagerPoints</div>
         </div>
         <div className="divide-y divide-white/5">
-          {/* Current User Row — only show when user has a monthly score */}
-          {isConnected && currentUserEntry && (
+          {/* Current User Row — only show when user has a monthly score and isn't already shown on the podium above */}
+          {isConnected && currentUserEntry && (currentUserRank === undefined || currentUserRank > 3) && (
             <div className="grid grid-cols-12 gap-4 p-4 items-center bg-wager-cyan/10 border-b border-wager-cyan/30">
               <div className="col-span-1 text-center font-black text-wager-cyan">
                 {currentUserRank ? `#${currentUserRank}` : "-"}

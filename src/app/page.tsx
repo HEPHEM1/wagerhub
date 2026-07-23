@@ -21,8 +21,8 @@ export default function Home() {
       const hash = window.location.hash;
       const arcadeGameIds = ["#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
 
-      if (hash === "#wager-swap" || hash === "#swap" || hash === "") {
-        if (hash === "#wager-swap" || hash === "#swap") setActiveView("swap");
+      if (hash === "#wager-swap" || hash === "#swap") {
+        setActiveView("swap");
       } else if (arcadeGameIds.includes(hash)) {
         setActiveView("arcade");
       } else if (hash === "#arcade") {

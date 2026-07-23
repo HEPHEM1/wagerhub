@@ -41,7 +41,12 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
   };
 
   const startGame = async () => {
-    if (!wager || parseFloat(wager) <= 0) return;
+    if (isProcessing) return;
+    if (!wager || !(parseFloat(wager) > 0)) return;
+    if (parseFloat(wager) > parseFloat(balances.wager || "0")) {
+      setTxError("Insufficient $WAGER balance.");
+      return;
+    }
     if (!isConnected || !accountId) {
       connect();
       return;
@@ -49,34 +54,6 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
 
     setIsProcessing(true);
     setTxError(null);
-    let hasResolved = false;
-
-    // ── 6-Second Safety Net ──
-    const fallbackTimeout = setTimeout(() => {
-      if (!hasResolved) {
-        console.warn("[MysteryField] 6-second timeout reached! Forcing UI transition.");
-        hasResolved = true;
-        setIsProcessing(false);
-        
-        const newBoxes = Array.from({ length: 30 }).map((_, i) => ({
-          id: i,
-          isBomb: false,
-          isRevealed: false,
-        }));
-        let bombsPlaced = 0;
-        while (bombsPlaced < bombs) {
-          const idx = Math.floor(Math.random() * 30);
-          if (!newBoxes[idx].isBomb) {
-            newBoxes[idx].isBomb = true;
-            bombsPlaced++;
-          }
-        }
-        setBoxes(newBoxes);
-        setMultiplier(1.0);
-        setSafeClicks(0);
-        setGameState("playing");
-      }
-    }, 6000);
 
     try {
       const amountInTokens = BigInt(Math.floor(parseFloat(wager) * 1e8));
@@ -85,10 +62,6 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         EVM_TREASURY_ADDRESS,
         amountInTokens.toString()
       );
-
-      if (hasResolved) return;
-      hasResolved = true;
-      clearTimeout(fallbackTimeout);
 
       if (!res || res.status !== "SUCCESS") {
         console.warn("[MysteryField] Transaction execution returned null.");
@@ -128,9 +101,6 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
         setTxError("Transaction failed on the network. Please try again.");
       }
     } catch (err: any) {
-      if (hasResolved) return;
-      hasResolved = true;
-      clearTimeout(fallbackTimeout);
       console.error("[MysteryField] Start game error:", err);
       setTxError(err.message || "Transaction failed. Check console for details.");
     } finally {
@@ -173,7 +143,7 @@ export default function MysteryField({ onClose }: { onClose: () => void }) {
   const currentWin = wager ? (parseFloat(wager) * multiplier).toFixed(2) : "0.00";
 
   const cashOut = async (finalMult?: number) => {
-    if (!accountId || !wager) return;
+    if (!accountId || !wager || isCashingOut) return;
 
     const winAmountToPayout = wager ? (parseFloat(wager) * (finalMult || multiplier)).toFixed(2) : "0.00";
     setIsCashingOut(true);

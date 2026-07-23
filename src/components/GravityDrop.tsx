@@ -81,7 +81,7 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
   }, [rows, risk]);
 
   const dropBall = async () => {
-    if (!wager || parseFloat(wager) < 50 || isProcessingRef.current || isDropping) return;
+    if (!wager || !(parseFloat(wager) >= 50) || isProcessingRef.current || isDropping) return;
     if (!isConnected || !accountId) {
       connect();
       return;
@@ -395,9 +395,9 @@ export default function GravityDrop({ onClose }: { onClose: () => void }) {
 
         <button
           onClick={dropBall}
-          disabled={isProcessing || isDropping || parseFloat(wager) < 50}
+          disabled={isProcessing || isDropping || !(parseFloat(wager) >= 50)}
           className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)]
-            ${isProcessing || isDropping || parseFloat(wager) < 50 
+            ${isProcessing || isDropping || !(parseFloat(wager) >= 50)
               ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50' 
               : 'bg-gradient-to-r from-orange-500 to-rose-500 text-white hover:scale-[1.02] active:scale-[0.98]'
             }

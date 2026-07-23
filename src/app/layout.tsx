@@ -32,53 +32,28 @@ export default function RootLayout({
     >
       <head>
         {/*
-          ── WagerHub EVM Noise Suppressor ────────────────────────────────────
-          This inline script runs synchronously BEFORE any browser extension
-          (MetaMask, Coinbase Wallet, etc.) can fire its auto-connect logic.
+          ── Browser-Extension Error Suppressor ───────────────────────────────
+          WagerHub connects via Reown AppKit + Wagmi, so MetaMask and other
+          EVM wallets ARE a real, supported connection path (see WalletContext.tsx
+          and the FAQ) — their errors must reach our own try/catch handling.
 
-          WagerHub is a native Hedera application. It uses HashPack via
-          HashConnect — it does NOT use window.ethereum or any EVM RPC.
-
-          MetaMask's inpage.js is injected by the Chrome extension and calls
-          window.ethereum.request({ method: 'eth_accounts' }) automatically
-          on every page load, producing:
-            "Failed to connect to MetaMask / extension not found"
-          in the console even though we never called it.
-
-          Strategy:
-          1. Replace window.ethereum.request with a no-op that rejects instantly,
-             preventing the auto-connect from hanging or throwing unhandled errors.
-          2. Intercept window.onerror to silently swallow errors whose source is
-             chrome-extension:// (MetaMask inpage.js lives there).
-          3. Intercept unhandledrejection to suppress EVM promise noise.
+          This only swallows errors whose *source file* is chrome-extension://
+          (e.g. MetaMask's inpage.js probing window.ethereum on load before the
+          user has done anything). It deliberately does NOT touch
+          unhandledrejection based on message-text keywords like "ethereum" or
+          "MetaMask" — those are too likely to also match a real wallet/transaction
+          failure our own code threw, which would hide it from the user.
         */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
 (function() {
   try {
-    // 1. Swallow errors thrown by chrome-extension:// scripts (MetaMask inpage.js)
     var _origError = window.onerror;
     window.onerror = function(msg, src, line, col, err) {
       if (src && src.indexOf('chrome-extension://') === 0) return true; // suppress
       if (_origError) return _origError(msg, src, line, col, err);
     };
-  } catch(e) {}
-
-  try {
-    // 2. Suppress unhandled EVM promise rejections globally
-    window.addEventListener('unhandledrejection', function(event) {
-      var msg = (event.reason && event.reason.message) ? event.reason.message : String(event.reason || '');
-      if (
-        msg.indexOf('MetaMask') !== -1 ||
-        msg.indexOf('extension not found') !== -1 ||
-        msg.indexOf('ethereum') !== -1 ||
-        msg.indexOf('No injected provider') !== -1 ||
-        msg.indexOf('EVM auto-connect suppressed') !== -1
-      ) {
-        event.preventDefault();
-      }
-    }, true);
   } catch(e) {}
 })();
             `.trim(),

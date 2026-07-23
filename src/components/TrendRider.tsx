@@ -49,6 +49,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
   const tickRef = useRef<NodeJS.Timeout | null>(null);
   const candleRef = useRef<NodeJS.Timeout | null>(null);
   const biasedWinRef = useRef<boolean | null>(null);
+  const isResolvingRef = useRef(false);
 
   // --- Candlestick Simulation Engine ---
   useEffect(() => {
@@ -233,7 +234,12 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
   };
 
   const placeTrade = async (dir: "LONG" | "SHORT") => {
-    if (!wager || parseFloat(wager) <= 0) return;
+    if (isProcessing) return;
+    if (!wager || !(parseFloat(wager) > 0)) return;
+    if (parseFloat(wager) > parseFloat(balances.wager || "0")) {
+      setTxError("Insufficient $WAGER balance.");
+      return;
+    }
     if (!isConnected || !accountId) {
       connect();
       return;
@@ -257,6 +263,7 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
       if (!res || res.status !== "SUCCESS") throw new Error("Transaction rejected");
 
       // Transaction Success - Start Game immediately
+      isResolvingRef.current = false;
       setGameState("active");
       setTimeLeft(5); // Exactly 5 seconds
       setPnlMultiplier(1.0);
@@ -299,6 +306,8 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
   };
 
   const resolveTrade = (status: "WIN" | "LOSS" | "LIQUIDATED", resolvePrice: number, mult: number) => {
+    if (isResolvingRef.current) return;
+    isResolvingRef.current = true;
     setGameState("resolved");
     setWinStatus(status);
     
@@ -323,17 +332,20 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
           "Content-Type": "application/json",
           "X-Payout-Secret": process.env.NEXT_PUBLIC_PAYOUT_SECRET || ""
         },
-        body: JSON.stringify({ 
-          accountId, 
+        body: JSON.stringify({
+          accountId,
           winAmount: finalReturn.toFixed(2),
           wagerAmount: wager,
           direction: 'GAME_WIN'
         })
-      }).catch(err => console.error("Payout API error:", err));
+      })
+      .then(async (r) => { if (!r.ok) console.error("Payout failed:", await r.text()); })
+      .catch(err => console.error("Payout API error:", err));
     }
 
     // Reset after 4 seconds
     setTimeout(() => {
+      isResolvingRef.current = false;
       setGameState("idle");
       setWinStatus(null);
       setEntryPrice(null);

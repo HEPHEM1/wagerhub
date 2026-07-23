@@ -63,12 +63,21 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
     if (selectedZones.includes(id)) {
       setSelectedZones(selectedZones.filter(z => z !== id));
     } else {
+      // Cap at 4 selected zones: the keeper always dives to exactly 2 zones,
+      // so selecting 5+ leaves fewer than 2 safe zones and makes winning
+      // mathematically impossible (keeper is forced onto a selected zone).
+      if (selectedZones.length >= 4) return;
       setSelectedZones([...selectedZones, id]);
     }
   };
 
   const takeShot = async () => {
-    if (!wager || parseFloat(wager) <= 0 || selectedZones.length < 2) return;
+    if (isProcessing) return;
+    if (!wager || !(parseFloat(wager) > 0) || selectedZones.length < 2) return;
+    if (parseFloat(wager) > parseFloat(balances.wager || "0")) {
+      setTxError("Insufficient $WAGER balance.");
+      return;
+    }
     if (!isConnected || !accountId) {
       connect();
       return;
@@ -125,7 +134,7 @@ export default function PenaltyShootoutPro({ onClose }: { onClose: () => void })
         EVM_WAGER_TOKEN_ADDRESS,
         ERC20_ABI,
         "approve",
-        [MOCK_WAGER_GAMES_ADDRESS, amountInTokens.toString()]
+        [MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS, amountInTokens.toString()]
       );
       if (!approveRes || approveRes.status !== "SUCCESS") {
         throw new Error("Token approval failed or rejected by wallet.");

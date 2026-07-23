@@ -224,28 +224,6 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
             </motion.button>
           </div>
 
-          {/* Protocol Stats Ticker */}
-          <div className="w-full max-w-4xl bg-wager-charcoal/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row justify-around items-center gap-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-            <div className="flex flex-col items-center">
-              <span className="text-xs uppercase font-bold tracking-widest text-zinc-500 mb-2">Total Volume</span>
-              <span className="font-mono text-2xl text-wager-lime font-bold tracking-wider drop-shadow-[0_0_10px_rgba(204,255,0,0.5)]">$0.00</span>
-            </div>
-            
-            <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
-            
-            <div className="flex flex-col items-center">
-              <span className="text-xs uppercase font-bold tracking-widest text-zinc-500 mb-2">Total Wagers Placed</span>
-              <span className="font-mono text-2xl text-wager-lime font-bold tracking-wider drop-shadow-[0_0_10px_rgba(204,255,0,0.5)]">0</span>
-            </div>
-            
-            <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
-            
-            <div className="flex flex-col items-center">
-              <span className="text-xs uppercase font-bold tracking-widest text-zinc-500 mb-2">House Treasury</span>
-              <span className="font-mono text-2xl text-wager-lime font-bold tracking-wider drop-shadow-[0_0_10px_rgba(204,255,0,0.5)]">0.00 HBAR</span>
-            </div>
-          </div>
-
         </motion.div>
       </section>
 
@@ -385,10 +363,7 @@ export default function LandingPage({ onEnter }: { onEnter: () => void }) {
             {/* Wager Arcade Route */}
             <motion.div 
               whileHover={{ y: -10 }}
-              onClick={() => handleRoute("#arcade")} // Assuming #arcade triggers something, actually we just need to set active view. 
-              // Wait, page.tsx doesn't have an "#arcade" hash listener to set activeView("arcade").
-              // I will update page.tsx to support hash routing for main tabs too if we want, or just call handleRoute("arcade") and pass target to onEnter!
-              // For now, let's pass the string to onEnter.
+              onClick={() => handleRoute("#arcade")}
               className="cursor-pointer group relative bg-black/60 border border-white/10 rounded-3xl overflow-hidden shadow-xl"
             >
               <div className="absolute inset-0 bg-gradient-to-t from-wager-lime/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>

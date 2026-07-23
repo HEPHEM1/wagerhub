@@ -15,6 +15,7 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
   const [showResult, setShowResult] = useState(false);
   const [resultType, setResultType] = useState<"win" | "loss" | null>(null);
   const [payoutAmount, setPayoutAmount] = useState<string>("0");
+  const [txError, setTxError] = useState<string | null>(null);
 
   const { isConnected, accountId, balances, executeEVMTransfer, refreshBalances, connect, addWagerPoints } = useWagerWallet();
 
@@ -26,7 +27,8 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
     }
 
     setIsConfirming(true);
-    
+    setTxError(null);
+
     try {
       const amountInTokens = BigInt(Math.floor(100 * 1e8)); // Fixed 100 WAGER
       const res = await executeEVMTransfer(
@@ -61,8 +63,10 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
           })
         });
 
-        if (!payoutRes.ok) throw new Error("Payout failed");
-        
+        if (!payoutRes.ok) {
+          throw new Error("Your wager went through and you won, but the payout failed. Please contact support with your wallet address so we can pay you manually.");
+        }
+
         setResultType("win");
         confetti({
           particleCount: 150,
@@ -82,7 +86,7 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
       refreshBalances();
     } catch (err: any) {
       console.error("[BlindLootMaster] Error:", err);
-      alert(err.message || "Fate rejected. Try again.");
+      setTxError(err.message || "Fate rejected. Try again.");
     } finally {
       setIsConfirming(false);
     }
@@ -221,6 +225,11 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
             </motion.button>
           )}
         </AnimatePresence>
+        {txError && (
+          <div className="mt-6 max-w-lg p-4 bg-red-950/80 border border-red-500/40 rounded-xl">
+            <p className="text-xs text-red-400 font-mono text-center leading-snug">{txError}</p>
+          </div>
+        )}
       </div>
 
       {/* Result Overlay */}

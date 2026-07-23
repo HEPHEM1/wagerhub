@@ -1,8 +1,10 @@
-// Hedera EVM addresses: 0x + contract num in hex, left-padded to 40 chars
-// 0.0.9289511 → 0x8DBF27 → 0x0000000000000000000000000000000000008dbf27 (but that's 41 hex chars)
-// Correct: 9289511 decimal = 0x8DBF27 (6 hex), padded to 40 = 00000000000000000000000000000000008dbf27
-// Fixed Oracle Router (1e8 decimals for Hedera native msg.value)
-export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x9E80E3a85224190e6b87b7aaa3B6205de4Ef9AC1"; 
+// Deployed swap contract is HybridWagerSwapRouter.sol (fixed-price stablecoin
+// legs + AMM WAGER<->HBAR leg) — confirmed by ABI match below (setHbarUsdPrice,
+// hbarUsdPrice, withdrawLiquidity(address,uint256)). This is its CREATE2 EVM
+// address, not the long-zero form of WAGER_SWAP_POOL_HEDERA_ID below — the two
+// don't need to match, this is just the address wallets/ethers actually call.
+// contracts/WagerSwapPool.sol in this repo is an older, unused/undeployed contract.
+export const MOCK_WAGER_SWAP_POOL_ADDRESS = "0x9E80E3a85224190e6b87b7aaa3B6205de4Ef9AC1";
 
 export const MOCK_WAGER_GAMES_ADDRESS     = "0x31f659b77ba360729d1d0f2584de9be770ad3b42"; // NEW: 0.0.9507976 (with HTS self-association fix)
 export const MOCK_WAGER_GAMES_LONG_ZERO_ADDRESS = "0x0000000000000000000000000000000000911488"; // 0.0.9507976
@@ -29,12 +31,3 @@ export const WAGER_GAMES_ABI = [
   "function playBlindLoot(uint256 betAmount) external",
   "function withdrawLiquidity(uint256 amount) external"
 ];
-
-export function getCleanFunctionBytes(hexString: string): Uint8Array {
-  const hex = hexString.startsWith("0x") ? hexString.slice(2) : hexString;
-  const cleanBytes = new Uint8Array(hex.length / 2);
-  for(let i = 0; i < hex.length; i += 2) {
-    cleanBytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return cleanBytes;
-}

@@ -17,9 +17,12 @@ export async function GET() {
     // 2. Fetch all messages for the current month
     let messages: any[] = [];
     let url = `https://testnet.mirrornode.hedera.com/api/v1/topics/${topicId}/messages?timestamp=gte:${startTimestamp}&limit=100`;
+    let pageCount = 0;
+    const MAX_PAGES = 500; // safety cap against a malformed/self-referential links.next
 
-    while (url) {
-      const res = await fetch(url);
+    while (url && pageCount < MAX_PAGES) {
+      pageCount++;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!res.ok) {
         throw new Error(`Mirror node returned ${res.status}`);
       }
@@ -27,7 +30,7 @@ export async function GET() {
       if (data.messages && data.messages.length > 0) {
         messages = messages.concat(data.messages);
       }
-      
+
       // Handle pagination
       if (data.links && data.links.next) {
         url = `https://testnet.mirrornode.hedera.com${data.links.next}`;
@@ -36,20 +39,37 @@ export async function GET() {
       }
     }
 
-    // 3. Aggregate points per accountId
+    // 3. Aggregate points per accountId, deduping repeated submissions by
+    // (accountId, consensus_timestamp) so a retried/replayed log-score call
+    // isn't double-counted.
     const scores: Record<string, number> = {};
+    const seenMessageKeys = new Set<string>();
+    const MAX_EARNED_PER_MESSAGE = 5000; // matches the server-side cap in /api/log-score
 
     for (const m of messages) {
       try {
-        const rawStr = atob(m.message);
+        const rawStr = Buffer.from(m.message, "base64").toString("utf-8");
         const parsed = JSON.parse(rawStr);
 
-        const rawAccountId = parsed.accountId;
+        const rawAccountId = typeof parsed.accountId === "string" ? parsed.accountId.trim() : null;
         // Support both old "creditsEarned" and new "pointsEarned" keys for smooth transition
-        const earned = parsed.pointsEarned || parsed.creditsEarned || 0;
+        const rawEarned = parsed.pointsEarned ?? parsed.creditsEarned ?? 0;
 
-        if (rawAccountId && typeof earned === 'number') {
-          const accountId = rawAccountId.startsWith('0x') ? rawAccountId.toLowerCase() : rawAccountId;
+        if (rawAccountId && typeof rawEarned === 'number' && isFinite(rawEarned)) {
+          // Normalize consistently regardless of address format (0x EVM vs 0.0.x native)
+          const accountId = rawAccountId.toLowerCase();
+
+          // Dedupe: the same message read twice via pagination overlap, or a
+          // genuine client-side retry recorded as an identical event, should
+          // only count once.
+          const dedupeKey = `${accountId}:${m.consensus_timestamp}`;
+          if (seenMessageKeys.has(dedupeKey)) continue;
+          seenMessageKeys.add(dedupeKey);
+
+          // Re-validate bounds when reading back — don't trust the topic
+          // blindly even though the writer path already caps this.
+          const earned = Math.max(0, Math.min(rawEarned, MAX_EARNED_PER_MESSAGE));
+
           if (!scores[accountId]) {
             scores[accountId] = 0;
           }
@@ -72,12 +92,21 @@ export async function GET() {
       points: entry.points
     }));
 
-    // Generate a simple response structure
-    return NextResponse.json({
-      success: true,
-      month: startOfMonth.toISOString(),
-      data: rankedLeaderboard
-    });
+    // Generate a simple response structure.
+    // Short CDN-level cache so many simultaneous 30s client polls don't each
+    // trigger a fresh full-month Mirror Node replay.
+    return NextResponse.json(
+      {
+        success: true,
+        month: startOfMonth.toISOString(),
+        data: rankedLeaderboard
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+        },
+      }
+    );
 
   } catch (error: any) {
     console.error("[Leaderboard API] Error:", error);

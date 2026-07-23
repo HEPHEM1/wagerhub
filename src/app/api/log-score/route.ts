@@ -23,6 +23,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // ── Basic shape validation on attacker-controlled fields ──────────────────
+    if (typeof accountId !== "string" || accountId.length === 0 || accountId.length > 80) {
+      return NextResponse.json({ error: "Invalid accountId" }, { status: 400 });
+    }
+    if (event !== undefined && typeof event !== "string") {
+      return NextResponse.json({ error: "Invalid event" }, { status: 400 });
+    }
+    if (totalPoints !== undefined && (typeof totalPoints !== "number" || !isFinite(totalPoints))) {
+      return NextResponse.json({ error: "Invalid totalPoints" }, { status: 400 });
+    }
+
     // ── C-6: Validate pointsEarned is a positive number ───────────────────────
     const rawPoints = Number(pointsEarned);
     if (!isFinite(rawPoints) || rawPoints < 0) {
@@ -32,6 +43,12 @@ export async function POST(req: Request) {
     const eventKey = (event || "default").toLowerCase();
     const cap = MAX_POINTS[eventKey] ?? MAX_POINTS.default;
     const sanitizedPoints = Math.min(rawPoints, cap);
+    // Bound the client-reported running total embedded in the HCS record —
+    // it's informational only (the leaderboard re-derives real totals from
+    // summed pointsEarned), but keep it sane rather than trusting it blindly.
+    const sanitizedTotalPoints = typeof totalPoints === "number"
+      ? Math.max(0, Math.min(totalPoints, 100_000_000))
+      : totalPoints;
 
     if (sanitizedPoints === 0 && rawPoints > 0) {
       console.warn(`[HCS] ⚠️ Points for event "${eventKey}" are zero — blocked.`);
@@ -41,6 +58,14 @@ export async function POST(req: Request) {
     // ── M-7: Rate limiting per wallet ─────────────────────────────────────────
     const walletKey = accountId.toLowerCase();
     const now = Date.now();
+
+    // Bound the map's memory growth: sweep out expired entries once it gets large.
+    if (rateLimitMap.size > 5000) {
+      for (const [key, val] of rateLimitMap) {
+        if (now - val.windowStart >= RATE_LIMIT_WINDOW) rateLimitMap.delete(key);
+      }
+    }
+
     const limiter = rateLimitMap.get(walletKey);
 
     if (limiter) {
@@ -80,7 +105,7 @@ export async function POST(req: Request) {
       accountId,
       event: eventKey,
       pointsEarned: sanitizedPoints,
-      totalPoints,
+      totalPoints: sanitizedTotalPoints,
       timestamp: new Date().toISOString(),
     });
 

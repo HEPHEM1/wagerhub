@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Wallet, ChevronDown, LogOut, RefreshCw, AlertCircle, Link2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Wallet, ChevronDown, LogOut, RefreshCw, AlertCircle, Link2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWagerWallet } from "@/hooks/useWagerWallet";
 import { useAppKit } from "@reown/appkit/react";
@@ -32,6 +32,26 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // ── Click-outside / Escape to close the wallet dropdown ────────────────────
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     const handleScroll = (e: any) => {
@@ -144,14 +164,15 @@ export default function Header() {
         {!isConnected ? (
           <button
             onClick={() => open()}
-            className="bg-wager-cyan hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,255,255,0.3)] uppercase tracking-widest flex items-center gap-2"
+            disabled={isConnecting}
+            className="bg-wager-cyan hover:bg-cyan-400 text-black text-xs font-black px-6 py-2 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,255,255,0.3)] uppercase tracking-widest flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
-            <Wallet size={14} />
-            Access WagerHub
+            {isConnecting ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+            {isConnecting ? "Connecting..." : "Access WagerHub"}
           </button>
         ) : (
           /* ── Connected state ──────────────────────────────────────────────── */
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <motion.button
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -238,7 +259,7 @@ export default function Header() {
                     className="w-full flex items-center gap-3 px-4 py-3 text-sm text-wager-red font-bold hover:bg-wager-red/10 transition-colors"
                   >
                     <LogOut size={16} />
-                    Unlink HashPack
+                    Disconnect Wallet
                   </button>
                 </motion.div>
               )}

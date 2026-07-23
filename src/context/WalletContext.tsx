@@ -4,6 +4,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
 } from "react";
@@ -151,15 +152,19 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   // that shows a false "Network Mismatch" banner on every first interaction.
 
   const [wagerPoints, setWagerPoints] = useState<number>(0);
+  const wagerPointsRef = useRef(0); // Tracks the true latest total synchronously, avoiding lost updates across rapid calls
   const wagerCredits = Math.floor(wagerPoints * 0.05);
-  
+
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const storedPoints = localStorage.getItem("wagerHub_points");
-      if (storedPoints) setWagerPoints(parseInt(storedPoints, 10));
+      const parsed = storedPoints ? parseInt(storedPoints, 10) : 0;
+      const safePoints = Number.isFinite(parsed) ? parsed : 0;
+      wagerPointsRef.current = safePoints;
+      setWagerPoints(safePoints);
     } catch (e) {}
   }, []);
 
@@ -180,8 +185,10 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   }, [isConnected, address]);
 
   const addWagerPoints = (amount: number) => {
-    // Compute new total synchronously from current state so the HCS fetch has the right value
-    const newTotal = wagerPoints + amount;
+    // Compute new total from the ref (not React state) so back-to-back calls
+    // before a re-render still accumulate correctly instead of losing an update.
+    const newTotal = wagerPointsRef.current + amount;
+    wagerPointsRef.current = newTotal;
     localStorage.setItem("wagerHub_points", newTotal.toString());
     setWagerPoints(newTotal);
 
@@ -296,11 +303,21 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   };
 
   const connect = async () => {
-    await open();
+    try {
+      await open();
+    } catch (e: any) {
+      console.error("[WalletContext] Connect failed:", e);
+      setError(e?.message || "Failed to open wallet connection.");
+    }
   };
 
   const disconnectWallet = async () => {
-    await disconnectAsync();
+    try {
+      await disconnectAsync();
+    } catch (e: any) {
+      console.error("[WalletContext] Disconnect failed:", e);
+      setError(e?.message || "Failed to disconnect wallet.");
+    }
   };
 
   return (

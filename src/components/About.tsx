@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Info, ArrowRightLeft, Gamepad2, Target, Swords, Dices, TrendingUp, HelpCircle, Radio, Zap, Grid3x3, Disc3, Lock } from "lucide-react";
+import { Info, ArrowRightLeft, Target, Swords, Dices, TrendingUp, HelpCircle, Radio, Grid3x3, Disc3, Lock } from "lucide-react";
 
 export default function About() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,7 +36,7 @@ export default function About() {
             <li><strong className="text-white">Welcome Gift — 70 $WAGER:</strong> Every new wallet that connects to WagerHub receives a one-time welcome gift of <strong>70 $WAGER</strong> directly from the house treasury. This is a real on-chain transfer and can only be claimed once per wallet address.</li>
             <li><strong className="text-white">12-Hour Loyalty Claim — 100 WagerPoints:</strong> After claiming your Welcome Gift, a recurring 12-hour bonus timer activates. Every 12 hours you may claim <strong>100 WagerPoints</strong> as a loyalty reward — keeping you on the leaderboard even between sessions.</li>
             <li><strong className="text-white">Earning via WagerSwap:</strong> Every swap you execute through the Universal Router earns points based on the exact live USD volume of that swap. A standard swap earns <strong>250 WagerPoints per $1.00 USD equivalent</strong>. Your first qualifying swap of the day (≥ $10.00 USD) earns a massive <strong>5,000 WagerPoint daily bonus</strong>!</li>
-            <li><strong className="text-white">Arcade Minimum Qualifying Bet:</strong> All Arcade games enforce a minimum bet threshold of <strong>10 $WAGER</strong> (or 1.0 HBAR equivalent). Submitting a valid on-chain game transaction at or above this threshold instantly awards you a flat <strong>800 WagerPoints per round</strong>, regardless of whether you win or lose. Bets below 10 $WAGER earn 0 WagerPoints.</li>
+            <li><strong className="text-white">Arcade Minimum Qualifying Bet:</strong> Most Arcade games enforce a minimum bet threshold of <strong>10 $WAGER</strong> (or 1.0 HBAR equivalent) to qualify for points — <strong>Gravity Drop requires a 50 $WAGER minimum bet</strong>, and Blind Loot uses a fixed 100 $WAGER wager. Submitting a valid on-chain game transaction at or above a game's threshold instantly awards you a flat <strong>800 WagerPoints per round</strong>, regardless of whether you win or lose. Bets below the threshold earn 0 WagerPoints.</li>
           </ul>
           <p className="text-amber-400/80 text-xs border border-amber-400/20 rounded-xl px-4 py-3 bg-amber-400/5">
             ⚠️ <strong>Testnet Notice:</strong> WagerHub is currently live on the Hedera Testnet. All $WAGER tokens, HBAR, USDC, and USDT used within the platform are testnet assets with no real-world monetary value.
@@ -205,6 +205,22 @@ export default function About() {
   ];
 
   const comingSoonSections = [
+    {
+      id: "degen-dice",
+      title: "Degen Dice",
+      icon: <Dices size={32} className="text-yellow-400" />,
+      color: "text-yellow-400 border-yellow-400/30 bg-yellow-400/10",
+      content: (
+        <div className="space-y-4 text-zinc-400 font-mono leading-relaxed">
+          <p>Roll the on-chain dice. Pure probability, instant payouts, ultimate degen action.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong className="text-zinc-300">Game Type:</strong> Provably fair on-chain dice roll with adjustable win-chance and payout multiplier.</li>
+            <li><strong className="text-zinc-300">Instant Resolution:</strong> No waiting — the roll resolves and pays out in a single transaction.</li>
+            <li><strong className="text-zinc-300">On-Chain Fairness:</strong> The roll seed is verifiable, making every outcome fully auditable.</li>
+          </ul>
+        </div>
+      )
+    },
     {
       id: "naughts-nodes",
       title: "Naughts & Nodes",

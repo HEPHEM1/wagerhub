@@ -514,16 +514,18 @@ export default function Wagerswap() {
       setSwapStatus("swapping");
       let res;
 
-      // minAmountOut strategy: the WagerSwap pool contract enforces its own
-      // internal price (owner-set hbarUsdPrice). If we send a minAmountOut
-      // derived from a *different* oracle price, the contract will always
-      // revert with "Slippage too high" because our expected amount never
-      // matches its calculation exactly. We pass "0" here to disable the
-      // frontend slippage guard and let the contract's own price check be the
-      // sole gatekeeper. This is standard practice for fixed-price DEX pools.
-      const minAmountOutTokens = "0";
-      console.log(`[Wagerswap] minAmountOut set to 0 — contract enforces its own price`);
-      // (slippage setting is retained in UI for future use when we migrate to AMM)
+      // minAmountOut: derived from the currently displayed quote and the
+      // user-selected slippage tolerance, expressed in the receive token's
+      // smallest units (matching how the contract compares amountOut).
+      // This actually protects users on the WAGER<->HBAR AMM leg (real,
+      // reserve-based pricing that can move between quote and execution),
+      // and acts as a sane sanity bound on the fixed-price stablecoin legs too.
+      const receiveDecimals = TOKEN_DECIMALS[receiveToken.symbol] ?? receiveToken.decimals;
+      const expectedReceive = parseFloat(receiveAmount) || 0;
+      const slippageTolerance = (parseFloat(slippage) || 0) / 100;
+      const minReceive = expectedReceive * (1 - slippageTolerance);
+      const minAmountOutTokens = Math.max(0, Math.floor(minReceive * Math.pow(10, receiveDecimals))).toString();
+      console.log(`[Wagerswap] minAmountOut: ${minAmountOutTokens} (expected ${expectedReceive}, slippage ${slippage}%)`);
 
       const decimals = TOKEN_DECIMALS[payToken.symbol] ?? payToken.decimals;
       const amountInTokens = Math.floor(parseFloat(payAmount) * Math.pow(10, decimals));
