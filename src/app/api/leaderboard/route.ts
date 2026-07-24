@@ -1,5 +1,30 @@
 import { NextResponse } from "next/server";
 
+// Logged scores carry the wagmi/AppKit EVM 0x address. Resolving to the
+// native Hedera account ID (0.0.X) is a 1:1, unchanging mapping per account,
+// so cache it across requests/warm invocations instead of re-hitting Mirror
+// Node on every 15s cache refresh.
+const hederaIdCache = new Map<string, string>();
+
+async function resolveHederaAccountIds(accountIds: string[]): Promise<void> {
+  const toResolve = accountIds.filter((id) => id.startsWith("0x") && !hederaIdCache.has(id));
+  await Promise.all(
+    toResolve.map(async (id) => {
+      try {
+        const res = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/accounts/${id}`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.account) hederaIdCache.set(id, data.account);
+        }
+      } catch (e) {
+        // Leave unresolved — the caller falls back to the raw EVM address.
+      }
+    })
+  );
+}
+
 export async function GET() {
   const topicId = (process.env.NEXT_PUBLIC_HCS_TOPIC_ID || "").trim();
 
@@ -85,10 +110,13 @@ export async function GET() {
       .map(([accountId, points]) => ({ accountId, points }))
       .sort((a, b) => b.points - a.points);
 
+    // 4b. Resolve EVM addresses to native Hedera account IDs for display.
+    await resolveHederaAccountIds(leaderboard.map((e) => e.accountId));
+
     // 5. Assign ranks
     const rankedLeaderboard = leaderboard.map((entry, index) => ({
       rank: index + 1,
-      accountId: entry.accountId,
+      accountId: hederaIdCache.get(entry.accountId) || entry.accountId,
       points: entry.points
     }));
 
