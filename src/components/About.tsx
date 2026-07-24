@@ -171,14 +171,14 @@ export default function About() {
       content: (
         <div className="space-y-4 text-zinc-300 font-mono leading-relaxed">
           <p>
-            Blind Loot is a high-stakes loot box experience stripped of all logic, leaving only pure, brutal luck. Two paths — Blessed or Cursed — diverge before you.
+            Blind Loot is a high-stakes loot box gamble. Two paths diverge before you — Blessed or Shadow — each with its own odds and payout.
           </p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong className="text-white">Fixed Wager:</strong> Unlike other games, Blind Loot uses a <strong>fixed wager of 100 $WAGER</strong> per round. There is no variable bet — every player stakes the same amount.</li>
-            <li><strong className="text-white">Choose Your Path:</strong> Select either the <strong>Blessed Path</strong> (standard risk, standard reward) or the <strong>Cursed Path</strong> (higher risk, cursed multiplier) before revealing your fate.</li>
-            <li><strong className="text-white">No Clues:</strong> Unlike traditional minesweeper, there are no numbers, no patterns, and no hints. You must rely entirely on intuition and chance.</li>
-            <li><strong className="text-white">Cash Out:</strong> Cash out your accumulated multiplier at any time before selecting a deadly tile to lock in a real on-chain payout.</li>
-            <li><strong className="text-white">WagerPoints:</strong> The fixed 100 $WAGER wager exceeds the 10 $WAGER threshold, so every round automatically awards <strong>800 WagerPoints</strong>.</li>
+            <li><strong className="text-white">Set Your Stake:</strong> Enter any wager amount (or use the 25% / 50% / 75% / MAX quick-select), then choose your path.</li>
+            <li><strong className="text-white">Choose Your Path:</strong> <strong>Blessed Loot</strong> wins 50% of the time for a 1.8x payout — the safer, steadier choice. <strong>Shadow Loot</strong> wins 35% of the time for a 2.5x payout — higher risk, bigger reward. Both odds and payouts are shown live on each path's card.</li>
+            <li><strong className="text-white">Win Streak Bonus:</strong> Consecutive wins add a small payout bonus — +2% per win, capping at +10% after 5 wins in a row. A loss resets the streak.</li>
+            <li><strong className="text-white">The Reveal:</strong> After your wager confirms on-chain, a 5-second countdown builds suspense before your fate is revealed.</li>
+            <li><strong className="text-white">WagerPoints:</strong> Every wager of ≥ 10 $WAGER awards <strong>800 WagerPoints</strong> per round, win or lose.</li>
           </ul>
         </div>
       )
