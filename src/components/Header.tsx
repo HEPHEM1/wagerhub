@@ -12,6 +12,7 @@ export default function Header() {
     isConnecting,
     isInitialized,
     accountId,
+    hederaAccountId,
     network,
     wagerCredits,
     balances,
@@ -23,8 +24,11 @@ export default function Header() {
 
   const { open } = useAppKit();
 
-  // Shorten EVM address for display: 0x1234...5678
-  const shortAccountId = accountId
+  // Prefer the native Hedera account ID (0.0.X) once resolved via Mirror Node;
+  // fall back to a shortened EVM address while that lookup is in flight.
+  const shortAccountId = hederaAccountId
+    ? hederaAccountId
+    : accountId
     ? `${accountId.slice(0, 6)}...${accountId.slice(-4)}`
     : null;
 
@@ -213,10 +217,10 @@ export default function Header() {
                       Account
                     </span>
                     <p className="text-xs font-mono text-white mt-0.5 truncate">
-                      {accountId}
+                      {hederaAccountId || accountId}
                     </p>
-                    <p className="text-[10px] font-mono text-zinc-500">
-                      {shortAccountId} · Hedera {network === "mainnet" ? "Mainnet" : network === "testnet" ? "Testnet" : "Unknown Network"}
+                    <p className="text-[10px] font-mono text-zinc-500 truncate">
+                      {accountId} · Hedera {network === "mainnet" ? "Mainnet" : network === "testnet" ? "Testnet" : "Unknown Network"}
                     </p>
                   </div>
 

@@ -70,6 +70,7 @@ export interface WalletContextValue {
   isInitialized: boolean;
   walletType: "EVM" | null;
   accountId: string | null;
+  hederaAccountId: string | null;
   network: string | null;
   wagerPoints: number;
   wagerCredits: number;
@@ -94,6 +95,7 @@ const WalletContext = createContext<WalletContextValue>({
   isInitialized: true,
   walletType: null,
   accountId: null,
+  hederaAccountId: null,
   network: null,
   wagerPoints: 0,
   wagerCredits: 0,
@@ -120,6 +122,19 @@ async function fetchHbarBalance(accountId: string): Promise<string> {
     return (tinybars / 1e8).toFixed(2);
   } catch (e) {
     return "0.00";
+  }
+}
+
+// AppKit/MetaMask expose the account as an EVM 0x address; resolve it to the
+// native Hedera account ID (0.0.X) via Mirror Node for display purposes.
+async function resolveHederaAccountId(evmAddress: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${MIRROR_NODE_BASE}/accounts/${evmAddress}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.account || null;
+  } catch (e) {
+    return null;
   }
 }
 
@@ -157,6 +172,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
 
   const [balances, setBalances] = useState<WalletBalances>(defaultBalances);
   const [error, setError] = useState<string | null>(null);
+  const [hederaAccountId, setHederaAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -182,6 +198,14 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isConnected && address) refreshBalances();
     else setBalances(defaultBalances);
+  }, [isConnected, address]);
+
+  useEffect(() => {
+    if (isConnected && address) {
+      resolveHederaAccountId(address).then(setHederaAccountId);
+    } else {
+      setHederaAccountId(null);
+    }
   }, [isConnected, address]);
 
   const addWagerPoints = (amount: number) => {
@@ -331,6 +355,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
         isInitialized: true,
         walletType: "EVM",
         accountId: address || null,
+        hederaAccountId,
         network: chainId === 296 ? "testnet" : (chainId === 295 ? "mainnet" : "unknown"),
         wagerPoints,
         wagerCredits,
