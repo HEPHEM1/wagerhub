@@ -8,6 +8,7 @@ import confetti from "canvas-confetti";
 import { EVM_WAGER_TOKEN_ADDRESS, EVM_TREASURY_ADDRESS } from "../evm";
 
 const LEVERAGE = 500; // 500x synthetic leverage for highly dynamic payouts
+const MAX_PAYOUT_MULTIPLIER = 10; // Caps any single trade's payout, mirroring /api/payout's caps
 
 interface Candle {
   id: number;
@@ -147,7 +148,8 @@ export default function TrendRider({ onBack }: { onBack: () => void }) {
           } else {
             rawMult = 1.0 + ((entryPrice - newPrice) / entryPrice) * LEVERAGE;
           }
-          
+          rawMult = Math.min(rawMult, MAX_PAYOUT_MULTIPLIER);
+
           setPnlMultiplier(Math.max(0, rawMult));
 
           // 1. Auto-Liquidate if multiplier hits 0 or below

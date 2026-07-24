@@ -17,6 +17,19 @@ const MAX_POINTS: Record<string, number> = {
 
 export async function POST(req: Request) {
   try {
+    // ── Shared-secret auth header — fail closed if not configured ────────────────
+    const logScoreSecret = (process.env.LOG_SCORE_SECRET || "").trim();
+    if (!logScoreSecret) {
+      console.error("[HCS] LOG_SCORE_SECRET is not configured — refusing all submissions.");
+      return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    }
+
+    const requestSecret = req.headers.get("x-log-secret") || "";
+    if (requestSecret !== logScoreSecret) {
+      console.warn("[HCS] ❌ Unauthorized log-score attempt — invalid secret.");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { accountId, pointsEarned, totalPoints, event } = await req.json();
 
     if (!accountId || pointsEarned === undefined) {

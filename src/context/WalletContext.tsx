@@ -196,7 +196,10 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     if (address) {
       fetch("/api/log-score", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Log-Secret": process.env.NEXT_PUBLIC_LOG_SCORE_SECRET || "",
+        },
         body: JSON.stringify({
           accountId: address,
           pointsEarned: amount,

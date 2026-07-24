@@ -41,11 +41,13 @@ export default function BlindLootMaster({ onClose }: { onClose: () => void }) {
       // 5-second polling/reveal delay
       await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // 50/50 Outcome for the demo (per user instruction)
-      const isWin = Math.random() > 0.5;
-      
+      // Cursed pays more (2.5x) but wins less often (35%) than Blessed (1.8x @ 50%)
+      // so the higher payout is a genuine risk/reward tradeoff, not a strictly better choice.
+      const winChance = selectedPath === "blessed" ? 0.5 : 0.35;
+      const isWin = Math.random() < winChance;
+
       if (isWin) {
-        const winMult = selectedPath === "blessed" ? 1.8 : 2.5; // Cursed is riskier?
+        const winMult = selectedPath === "blessed" ? 1.8 : 2.5;
         const winAmt = (100 * winMult).toFixed(2);
         setPayoutAmount(winAmt);
 
