@@ -19,12 +19,15 @@ export default function Home() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      const arcadeGameIds = ["#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
+      // Each game's "How to Play" button sets the hash to its own id (e.g. "#gravity-drop"),
+      // which matches a section id on the About page — send these there so the button actually
+      // lands on that game's writeup instead of just reopening the arcade lobby.
+      const gameInfoHashes = ["#trend-rider", "#mystery-field", "#gravity-drop", "#penalty-shootout", "#blind-loot", "#rps-zero-trust"];
 
       if (hash === "#wager-swap" || hash === "#swap") {
         setActiveView("swap");
-      } else if (arcadeGameIds.includes(hash)) {
-        setActiveView("arcade");
+      } else if (gameInfoHashes.includes(hash)) {
+        setActiveView("about");
       } else if (hash === "#arcade") {
         setActiveView("arcade");
       } else if (hash === "#leaderboard") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Target, Swords, Dices, Lock, Grid3x3, TrendingUp, Disc3 } from "lucide-react";
 import BlindLootMaster from "./BlindLootMaster";
@@ -58,24 +58,8 @@ const COMING_SOON_GAMES = [
   },
 ];
 
-const ARCADE_GAME_IDS = ["trend-rider", "mystery-field", "gravity-drop", "penalty-shootout", "blind-loot", "rps-zero-trust"];
-
 export default function ArcadeFloor() {
   const [activeGame, setActiveGame] = useState<string | null>(null);
-
-  // Deep-link support: opening #gravity-drop (etc.) should launch that
-  // specific game, not just land on the arcade lobby.
-  useEffect(() => {
-    const syncFromHash = () => {
-      const hash = window.location.hash.replace("#", "");
-      if (ARCADE_GAME_IDS.includes(hash)) {
-        setActiveGame(hash);
-      }
-    };
-    syncFromHash();
-    window.addEventListener("hashchange", syncFromHash);
-    return () => window.removeEventListener("hashchange", syncFromHash);
-  }, []);
 
   const games = [
     {
